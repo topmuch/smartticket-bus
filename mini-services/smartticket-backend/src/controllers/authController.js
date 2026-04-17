@@ -35,20 +35,26 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 2. Vérifier le mot de passe
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-    if (!isPasswordValid) {
-      return res.status(401).json({
+    // 2. Vérifier que le compte est actif (AVANT le password check pour éviter les attaques par timing)
+    if (!user.is_active) {
+      return res.status(403).json({
         success: false,
-        error: "Email ou mot de passe incorrect"
+        error: "Compte suspendu. Contactez l'administrateur."
       });
     }
 
-    // 3. Vérifier que le compte est actif
-    if (!user.is_active) {
+    // 3. Vérifier le mot de passe
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      // Audit des tentatives échouées
+      db.prepare(`
+        INSERT INTO audit_logs (user_id, action, entity, entity_id, details)
+        VALUES (?, 'LOGIN_FAILED', 'User', ?, ?)
+      `).run(user.id, user.id, JSON.stringify({ email: user.email, reason: 'wrong_password' }));
+
       return res.status(401).json({
         success: false,
-        error: "Compte désactivé. Contactez l'administrateur."
+        error: "Email ou mot de passe incorrect"
       });
     }
 
