@@ -133,7 +133,7 @@ export default function TicketSalesView() {
       return;
     }
 
-    const res = await apiFetch<FareCalcResult>('/api/fares/calculate', {
+    const res = await apiFetch<FareCalcResult>('/api/pricing/calculate', {
       method: 'POST',
       body: JSON.stringify({ fromZoneId: fromStop.zoneId, toZoneId: toStop.zoneId }),
     });
