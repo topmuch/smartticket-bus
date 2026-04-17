@@ -1,0 +1,22 @@
+{
+  "name": "smartticket-backend",
+  "version": "1.0.0",
+  "description": "SmartTicket Bus - Backend API Server (Express.js + SQLite)",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "bun --hot src/app.js",
+    "start": "node src/app.js",
+    "seed": "bun run seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "qrcode": "^1.5.4",
+    "sql.js": "^1.11.0",
+    "uuid": "^11.1.0"
+  }
+}
