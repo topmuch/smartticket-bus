@@ -63,6 +63,9 @@ router.get('/lines', optionalAuth, (req, res) => {
   res.json({ success: true, data: lines });
 });
 
+// Détail d'une ligne (public)
+router.get('/lines/:id', optionalAuth, adminCtrl.getLineById);
+
 // Arrêts publics
 router.get('/stops', optionalAuth, (req, res) => {
   const { db } = require('../config/db');
@@ -144,9 +147,21 @@ router.get('/tickets/:id', authenticate, ticketCtrl.getTicketById);
 // Image QR code
 router.get('/tickets/:id/qr', authenticate, ticketCtrl.generateQRImage);
 
-// --- TARIFS ---
+// --- TARIFS CRUD ---
 router.get('/tariffs', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.getTariffs);
 router.post('/tariffs', authenticate, authorize('SUPERADMIN'), adminCtrl.createTariff);
+router.put('/tariffs/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateTariff);
+router.delete('/tariffs/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteTariff);
+
+// --- LIGNES CRUD ---
+router.post('/lines', authenticate, authorize('SUPERADMIN'), adminCtrl.createLine);
+router.put('/lines/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateLine);
+router.delete('/lines/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteLine);
+
+// --- ARRÊTS CRUD ---
+router.post('/stops', authenticate, authorize('SUPERADMIN'), adminCtrl.createStop);
+router.put('/stops/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateStop);
+router.delete('/stops/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteStop);
 
 // --- ZONES (CRUD protégé) ---
 router.post('/zones', authenticate, authorize('SUPERADMIN'), adminCtrl.createZone);
@@ -157,14 +172,20 @@ router.delete('/zones/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.del
 router.get('/users', authenticate, authorize('SUPERADMIN'), adminCtrl.getUsers);
 router.post('/users', authenticate, authorize('SUPERADMIN'), adminCtrl.createUser);
 router.put('/users/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateUser);
+router.delete('/users/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteUser);
 
 // --- SESSIONS DE CAISSE ---
 router.get('/cash-sessions', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.getCashSessions);
 router.post('/cash-sessions', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.openCashSession);
 router.put('/cash-sessions/:id/close', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.closeCashSession);
 
+// --- HORAIRES CRUD ---
+router.post('/schedules', authenticate, authorize('SUPERADMIN'), adminCtrl.createSchedule);
+router.put('/schedules/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateSchedule);
+
 // --- CONTRÔLES ---
 router.get('/controls', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.getControls);
+router.get('/controls/stats', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.getControlsStats);
 router.post('/controls/sync', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.syncControls);
 
 // --- DONNÉES HORS-LIGNE ---
@@ -173,6 +194,8 @@ router.get('/offline/data', authenticate, authorize('CONTROLLER', 'SUPERADMIN'),
 // --- RAPPORTS & STATISTIQUES ---
 router.get('/reports/dashboard', authenticate, authorize('SUPERADMIN'), adminCtrl.getDashboard);
 router.get('/reports/revenue', authenticate, authorize('SUPERADMIN'), adminCtrl.getRevenueReport);
+router.get('/reports/controls', authenticate, authorize('SUPERADMIN'), adminCtrl.getControlsReport);
+router.get('/reports/export', authenticate, authorize('SUPERADMIN'), adminCtrl.exportCSV);
 
 // --- AUDIT ---
 router.get('/audit-logs', authenticate, authorize('SUPERADMIN'), adminCtrl.getAuditLogs);

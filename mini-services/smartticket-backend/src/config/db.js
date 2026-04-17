@@ -85,10 +85,14 @@ function createSchema() {
     number      TEXT UNIQUE NOT NULL,
     name        TEXT NOT NULL,
     color       TEXT DEFAULT '#16a34a',
+    description TEXT,
     is_active   INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
+
+  // Add description column if it doesn't exist (migration for existing DB)
+  try { db.run('ALTER TABLE lines ADD COLUMN description TEXT'); } catch(e) { /* column already exists */ }
 
   db.run(`CREATE TABLE IF NOT EXISTS stops (
     id          TEXT PRIMARY KEY,

@@ -215,13 +215,15 @@ export default function TicketSalesView() {
     setLoading(false);
 
     if (res.success && res.data) {
-      // Generate QR image
-      const qrRes = await apiFetch<{ qrImage: string }>('/api/tickets/generate-qr', {
-        method: 'POST',
-        body: JSON.stringify({ ticketId: res.data.id }),
-      });
-      if (qrRes.success && qrRes.data) {
-        res.data.qrImage = qrRes.data.qrImage;
+      // Generate QR image via GET /api/v1/tickets/:id/qr
+      const ticketId = (res.data as any).id;
+      if (ticketId) {
+        const qrRes = await apiFetch<{ qr_image?: string; qrImage?: string }>(`/api/tickets/${ticketId}/qr`, {
+          method: 'GET',
+        });
+        if (qrRes.success && qrRes.data) {
+          (res.data as any).qrImage = (qrRes.data as any).qr_image || (qrRes.data as any).qrImage;
+        }
       }
       setSoldTicket(res.data);
       setShowSuccess(true);
@@ -866,14 +868,24 @@ export default function TicketSalesView() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Type</span>
-                  <Badge>{soldTicket.type === 'UNIT' ? 'Unité' : 'Abonnement'}</Badge>
+                  <Badge>{soldTicket.type === 'UNIT' || soldTicket.type === 'single' ? 'Unité' : 'Abonnement'}</Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Trajet</span>
-                  <span className="font-medium">
-                    {soldTicket.fromStop?.name} → {soldTicket.toStop?.name}
-                  </span>
-                </div>
+                {soldTicket.fromZone && soldTicket.toZone && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Trajet</span>
+                    <span className="font-medium">
+                      {soldTicket.fromZone} → {soldTicket.toZone}
+                    </span>
+                  </div>
+                )}
+                {soldTicket.fromStop && soldTicket.toStop && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Trajet</span>
+                    <span className="font-medium">
+                      {soldTicket.fromStop?.name} → {soldTicket.toStop?.name}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Prix</span>
                   <span className="font-bold text-primary">{formatCurrency(soldTicket.price)}</span>

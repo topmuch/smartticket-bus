@@ -456,9 +456,16 @@ exports.openCashSession = (req, res) => {
 
 exports.closeCashSession = (req, res) => {
   try {
-    const session = db.prepare(`
-      SELECT * FROM cash_sessions WHERE id = ? AND operator_id = ?
-    `).get(req.params.id, req.user.userId);
+    // SUPERADMIN peut fermer n'importe quelle session, OPERATOR seulement la sienne
+    const isSuperAdmin = req.user.role === 'SUPERADMIN';
+    const sessionQuery = isSuperAdmin
+      ? 'SELECT * FROM cash_sessions WHERE id = ?'
+      : 'SELECT * FROM cash_sessions WHERE id = ? AND operator_id = ?';
+    const sessionParams = isSuperAdmin
+      ? [req.params.id]
+      : [req.params.id, req.user.userId];
+
+    const session = db.prepare(sessionQuery).get(...sessionParams);
 
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session non trouvée' });
@@ -654,6 +661,489 @@ exports.getOfflineData = (req, res) => {
     });
   } catch (error) {
     console.error('Erreur offline data:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// GESTION DES TARIFS (UPDATE / DELETE)
+// ============================================
+exports.updateTariff = (req, res) => {
+  try {
+    const { price, is_active } = req.body;
+    const existing = db.prepare('SELECT * FROM tariffs WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Tarif non trouvé' });
+
+    const newPrice = price !== undefined ? price : existing.price;
+    const newActive = is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active;
+
+    db.prepare(`
+      UPDATE tariffs SET price = ?, is_active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(newPrice, newActive, req.params.id);
+
+    const tariff = db.prepare(`
+      SELECT t.*, z1.name as from_zone_name, z1.code as from_zone_code,
+             z2.name as to_zone_name, z2.code as to_zone_code
+      FROM tariffs t
+      LEFT JOIN zones z1 ON t.from_zone_id = z1.id
+      LEFT JOIN zones z2 ON t.to_zone_id = z2.id
+      WHERE t.id = ?
+    `).get(req.params.id);
+
+    res.json({ success: true, message: 'Tarif mis à jour', data: tariff });
+  } catch (error) {
+    console.error('Erreur update tariff:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.deleteTariff = (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM tariffs WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Tarif non trouvé' });
+
+    db.prepare('UPDATE tariffs SET is_active = 0 WHERE id = ?').run(req.params.id);
+    res.json({ success: true, message: 'Tarif désactivé' });
+  } catch (error) {
+    console.error('Erreur delete tariff:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// GESTION DES LIGNES (CRUD)
+// ============================================
+exports.getLineById = (req, res) => {
+  try {
+    const line = db.prepare(`
+      SELECT l.*, 
+        (SELECT COUNT(*) FROM line_stops WHERE line_id = l.id) as stops_count,
+        (SELECT COUNT(*) FROM schedules WHERE line_id = l.id) as schedule_count
+      FROM lines l WHERE l.id = ?
+    `).get(req.params.id);
+
+    if (!line) return res.status(404).json({ success: false, error: 'Ligne non trouvée' });
+
+    // Get line stops with stop details
+    const lineStops = db.prepare(`
+      SELECT ls.*, s.name as stop_name, s.code as stop_code, s.latitude, s.longitude,
+             s.zone_id, z.name as zone_name, z.code as zone_code, z.color as zone_color
+      FROM line_stops ls
+      LEFT JOIN stops s ON ls.to_stop_id = s.id
+      LEFT JOIN zones z ON s.zone_id = z.id
+      WHERE ls.line_id = ?
+      ORDER BY ls.stop_order
+    `).all(req.params.id);
+
+    // Get schedules
+    const schedules = db.prepare(`
+      SELECT * FROM schedules WHERE line_id = ? AND is_active = 1
+      ORDER BY day_of_week, start_time
+    `).all(req.params.id);
+
+    res.json({
+      success: true,
+      data: { ...line, lineStops, schedules }
+    });
+  } catch (error) {
+    console.error('Erreur get line by id:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.createLine = (req, res) => {
+  try {
+    const { number, name, color, description, is_active } = req.body;
+    const id = require('uuid').v4();
+
+    db.prepare(`
+      INSERT INTO lines (id, number, name, color, description, is_active)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, number, name, color || '#16a34a', description || null, is_active !== undefined ? (is_active ? 1 : 0) : 1);
+
+    const line = db.prepare(`
+      SELECT l.*, 
+        (SELECT COUNT(*) FROM line_stops WHERE line_id = l.id) as stops_count,
+        (SELECT COUNT(*) FROM schedules WHERE line_id = l.id) as schedule_count
+      FROM lines l WHERE l.id = ?
+    `).get(id);
+
+    db.prepare(`
+      INSERT INTO audit_logs (user_id, action, entity, entity_id, details)
+      VALUES (?, 'CREATE', 'Line', ?, ?)
+    `).run(req.user.userId, id, JSON.stringify({ number, name }));
+
+    res.status(201).json({ success: true, message: 'Ligne créée', data: line });
+  } catch (error) {
+    console.error('Erreur create line:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.updateLine = (req, res) => {
+  try {
+    const { name, number, color, description, is_active } = req.body;
+    const existing = db.prepare('SELECT * FROM lines WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Ligne non trouvée' });
+
+    db.prepare(`
+      UPDATE lines SET name = ?, number = ?, color = ?, description = ?, is_active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      name || existing.name,
+      number !== undefined ? number : existing.number,
+      color || existing.color,
+      description !== undefined ? description : existing.description,
+      is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active,
+      req.params.id
+    );
+
+    const line = db.prepare(`
+      SELECT l.*, 
+        (SELECT COUNT(*) FROM line_stops WHERE line_id = l.id) as stops_count,
+        (SELECT COUNT(*) FROM schedules WHERE line_id = l.id) as schedule_count
+      FROM lines l WHERE l.id = ?
+    `).get(req.params.id);
+
+    res.json({ success: true, message: 'Ligne mise à jour', data: line });
+  } catch (error) {
+    console.error('Erreur update line:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.deleteLine = (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM lines WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Ligne non trouvée' });
+
+    db.prepare('UPDATE lines SET is_active = 0 WHERE id = ?').run(req.params.id);
+    res.json({ success: true, message: 'Ligne désactivée' });
+  } catch (error) {
+    console.error('Erreur delete line:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// GESTION DES ARRÊTS (CRUD)
+// ============================================
+exports.createStop = (req, res) => {
+  try {
+    const { name, code, zone_id, latitude, longitude, is_active } = req.body;
+    const id = require('uuid').v4();
+
+    if (!zone_id) {
+      return res.status(400).json({ success: false, error: 'Zone requise' });
+    }
+    const zone = db.prepare('SELECT id FROM zones WHERE id = ?').get(zone_id);
+    if (!zone) return res.status(400).json({ success: false, error: 'Zone non trouvée' });
+
+    db.prepare(`
+      INSERT INTO stops (id, name, code, zone_id, latitude, longitude, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, name, code, zone_id, latitude || null, longitude || null, is_active !== undefined ? (is_active ? 1 : 0) : 1);
+
+    const stop = db.prepare(`
+      SELECT s.*, z.name as zone_name, z.code as zone_code, z.color as zone_color
+      FROM stops s JOIN zones z ON s.zone_id = z.id
+      WHERE s.id = ?
+    `).get(id);
+
+    res.status(201).json({ success: true, message: 'Arrêt créé', data: stop });
+  } catch (error) {
+    console.error('Erreur create stop:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.updateStop = (req, res) => {
+  try {
+    const { name, code, zone_id, latitude, longitude, is_active } = req.body;
+    const existing = db.prepare('SELECT * FROM stops WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Arrêt non trouvé' });
+
+    if (zone_id) {
+      const zone = db.prepare('SELECT id FROM zones WHERE id = ?').get(zone_id);
+      if (!zone) return res.status(400).json({ success: false, error: 'Zone non trouvée' });
+    }
+
+    db.prepare(`
+      UPDATE stops SET name = ?, code = ?, zone_id = ?, latitude = ?, longitude = ?, is_active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      name || existing.name,
+      code || existing.code,
+      zone_id || existing.zone_id,
+      latitude !== undefined ? latitude : existing.latitude,
+      longitude !== undefined ? longitude : existing.longitude,
+      is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active,
+      req.params.id
+    );
+
+    const stop = db.prepare(`
+      SELECT s.*, z.name as zone_name, z.code as zone_code, z.color as zone_color
+      FROM stops s JOIN zones z ON s.zone_id = z.id
+      WHERE s.id = ?
+    `).get(req.params.id);
+
+    res.json({ success: true, message: 'Arrêt mis à jour', data: stop });
+  } catch (error) {
+    console.error('Erreur update stop:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.deleteStop = (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM stops WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Arrêt non trouvé' });
+
+    db.prepare('UPDATE stops SET is_active = 0 WHERE id = ?').run(req.params.id);
+    res.json({ success: true, message: 'Arrêt désactivé' });
+  } catch (error) {
+    console.error('Erreur delete stop:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// GESTION DES HORAIRES (CRUD)
+// ============================================
+exports.createSchedule = (req, res) => {
+  try {
+    const { line_id, day_of_week, start_time, end_time, frequency } = req.body;
+    const id = require('uuid').v4();
+
+    if (!line_id) {
+      return res.status(400).json({ success: false, error: 'Ligne requise' });
+    }
+
+    db.prepare(`
+      INSERT INTO schedules (id, line_id, day_of_week, start_time, end_time, frequency)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, line_id, day_of_week, start_time, end_time, frequency || 15);
+
+    const schedule = db.prepare(`
+      SELECT s.*, l.name as line_name, l.number as line_number
+      FROM schedules s JOIN lines l ON s.line_id = l.id
+      WHERE s.id = ?
+    `).get(id);
+
+    res.status(201).json({ success: true, message: 'Horaire créé', data: schedule });
+  } catch (error) {
+    console.error('Erreur create schedule:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+exports.updateSchedule = (req, res) => {
+  try {
+    const { day_of_week, start_time, end_time, frequency } = req.body;
+    const existing = db.prepare('SELECT * FROM schedules WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Horaire non trouvé' });
+
+    db.prepare(`
+      UPDATE schedules SET day_of_week = ?, start_time = ?, end_time = ?, frequency = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      day_of_week !== undefined ? day_of_week : existing.day_of_week,
+      start_time || existing.start_time,
+      end_time || existing.end_time,
+      frequency !== undefined ? frequency : existing.frequency,
+      req.params.id
+    );
+
+    const schedule = db.prepare(`
+      SELECT s.*, l.name as line_name, l.number as line_number
+      FROM schedules s JOIN lines l ON s.line_id = l.id
+      WHERE s.id = ?
+    `).get(req.params.id);
+
+    res.json({ success: true, message: 'Horaire mis à jour', data: schedule });
+  } catch (error) {
+    console.error('Erreur update schedule:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// STATISTIQUES DE CONTRÔLE (pour les contrôleurs)
+// ============================================
+exports.getControlsStats = (req, res) => {
+  try {
+    let controllerId = req.query.controller_id;
+    // If no controller_id specified, default to current user
+    if (!controllerId && req.user.role !== 'SUPERADMIN') {
+      controllerId = req.user.userId;
+    }
+
+    const todayStats = db.prepare(`
+      SELECT 
+        COUNT(*) as total_scans,
+        COUNT(CASE WHEN result = 'VALID' THEN 1 END) as valid_count,
+        COUNT(CASE WHEN result != 'VALID' THEN 1 END) as invalid_count
+      FROM controls
+      WHERE date(scanned_at) = date('now')
+      ${controllerId ? 'AND controller_id = ?' : ''}
+    `).get(...(controllerId ? [controllerId] : []));
+
+    res.json({
+      success: true,
+      data: {
+        totalScans: todayStats.total_scans,
+        validCount: todayStats.valid_count,
+        invalidCount: todayStats.invalid_count
+      }
+    });
+  } catch (error) {
+    console.error('Erreur controls stats:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// RAPPORT DE CONTRÔLES
+// ============================================
+exports.getControlsReport = (req, res) => {
+  try {
+    const { from, to, controller_id } = req.query;
+
+    let dateFilter = 'WHERE 1=1';
+    const params = [];
+
+    if (from && to) {
+      dateFilter += ' AND c.scanned_at BETWEEN ? AND ?';
+      params.push(from, to);
+    } else {
+      dateFilter += " AND c.scanned_at >= datetime('now', '-7 days')";
+    }
+
+    if (controller_id) {
+      dateFilter += ' AND c.controller_id = ?';
+      params.push(controller_id);
+    }
+
+    const report = db.prepare(`
+      SELECT 
+        date(c.scanned_at) as date,
+        c.controller_id,
+        u.name as controller_name,
+        COUNT(*) as total_controls,
+        COUNT(CASE WHEN c.result = 'VALID' THEN 1 END) as valid,
+        COUNT(CASE WHEN c.result != 'VALID' THEN 1 END) as infractions,
+        COUNT(CASE WHEN c.result = 'NOT_FOUND' THEN 1 END) as not_found,
+        COUNT(CASE WHEN c.result = 'EXPIRED' THEN 1 END) as expired,
+        COUNT(CASE WHEN c.result = 'ALREADY_USED' THEN 1 END) as already_used
+      FROM controls c
+      JOIN users u ON c.controller_id = u.id
+      ${dateFilter}
+      GROUP BY date(c.scanned_at), c.controller_id
+      ORDER BY date DESC, controller_name
+      LIMIT 100
+    `).all(...params);
+
+    res.json({ success: true, data: report });
+  } catch (error) {
+    console.error('Erreur controls report:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// EXPORT CSV
+// ============================================
+exports.exportCSV = (req, res) => {
+  try {
+    const { from, to, type = 'controls' } = req.query;
+
+    let csv = '';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=smartticket-${type}-report.csv`);
+
+    if (type === 'controls') {
+      let dateFilter = 'WHERE 1=1';
+      const params = [];
+
+      if (from && to) {
+        dateFilter += ' AND c.scanned_at BETWEEN ? AND ?';
+        params.push(from, to);
+      } else {
+        dateFilter += " AND c.scanned_at >= datetime('now', '-7 days')";
+      }
+
+      const controls = db.prepare(`
+        SELECT c.scanned_at, u.name as controller_name, c.result, c.reason,
+               t.ticket_number, t.passenger_name, c.latitude, c.longitude
+        FROM controls c
+        JOIN users u ON c.controller_id = u.id
+        LEFT JOIN tickets t ON c.ticket_id = t.id
+        ${dateFilter}
+        ORDER BY c.scanned_at DESC
+        LIMIT 10000
+      `).all(...params);
+
+      csv = 'Date,Contôleur,Résultat,Raison,N° Ticket,Passager,Latitude,Longitude\n';
+      for (const c of controls) {
+        csv += `"${c.scanned_at}","${c.controller_name || ''}","${c.result || ''}","${(c.reason || '').replace(/"/g, '""')}","${c.ticket_number || ''}","${(c.passenger_name || '').replace(/"/g, '""')}","${c.latitude || ''}","${c.longitude || ''}"\n`;
+      }
+    } else if (type === 'tickets') {
+      let dateFilter = 'WHERE 1=1';
+      const params = [];
+
+      if (from && to) {
+        dateFilter += ' AND t.sold_at BETWEEN ? AND ?';
+        params.push(from, to);
+      } else {
+        dateFilter += " AND t.sold_at >= datetime('now', '-7 days')";
+      }
+
+      const tickets = db.prepare(`
+        SELECT t.ticket_number, t.type, t.status, t.price, t.payment_method,
+               t.passenger_name, t.sold_at,
+               u.name as seller_name,
+               z1.name as from_zone, z2.name as to_zone
+        FROM tickets t
+        LEFT JOIN users u ON t.seller_id = u.id
+        LEFT JOIN zones z1 ON t.from_zone_id = z1.id
+        LEFT JOIN zones z2 ON t.to_zone_id = z2.id
+        ${dateFilter}
+        ORDER BY t.sold_at DESC
+        LIMIT 10000
+      `).all(...params);
+
+      csv = 'N° Ticket,Type,Statut,Prix,Méthode,Passager,Vendu le,Vendeur,Départ,Arrivée\n';
+      for (const t of tickets) {
+        csv += `"${t.ticket_number}","${t.type || ''}","${t.status || ''}",${t.price || 0},"${t.payment_method || ''}","${(t.passenger_name || '').replace(/"/g, '""')}","${t.sold_at || ''}","${t.seller_name || ''}","${t.from_zone || ''}","${t.to_zone || ''}"\n`;
+      }
+    }
+
+    res.send(csv);
+  } catch (error) {
+    console.error('Erreur export CSV:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// DÉSACTIVER UN UTILISATEUR (soft delete)
+// ============================================
+exports.deleteUser = (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+
+    db.prepare('UPDATE users SET is_active = 0, updated_at = datetime(\'now\') WHERE id = ?').run(req.params.id);
+
+    db.prepare(`
+      INSERT INTO audit_logs (user_id, action, entity, entity_id, details)
+      VALUES (?, 'DELETE', 'User', ?, ?)
+    `).run(req.user.userId, req.params.id, JSON.stringify({ action: 'soft_delete' }));
+
+    res.json({ success: true, message: 'Utilisateur désactivé' });
+  } catch (error) {
+    console.error('Erreur delete user:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 };

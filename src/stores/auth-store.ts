@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { toBackendUrl } from '@/lib/api';
 
 export type UserRole = 'SUPERADMIN' | 'OPERATOR' | 'CONTROLLER';
 
@@ -32,7 +33,9 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email: string, password: string) => {
         try {
-          const res = await fetch('/api/auth/login', {
+          // Express backend login: POST /api/auth/login
+          // Response: { success, data: { user, tokens: { access_token, refresh_token } } }
+          const res = await fetch(toBackendUrl('/api/auth/login'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
@@ -44,10 +47,15 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: data.error || 'Erreur de connexion' };
           }
 
+          // Express auth response uses nested tokens object
+          const tokens = data.data.tokens || {};
+          const accessToken = tokens.access_token || data.data.accessToken;
+          const refreshToken = tokens.refresh_token || data.data.refreshToken;
+
           set({
             user: data.data.user,
-            accessToken: data.data.accessToken,
-            refreshToken: data.data.refreshToken,
+            accessToken,
+            refreshToken,
             isAuthenticated: true,
           });
 
@@ -71,10 +79,13 @@ export const useAuthStore = create<AuthState>()(
         if (!refreshToken) return false;
 
         try {
-          const res = await fetch('/api/auth/refresh', {
+          // Express backend refresh: POST /api/auth/refresh
+          // Body: { refresh_token } (not { refreshToken })
+          // Response: { success, data: { access_token } }
+          const res = await fetch(toBackendUrl('/api/auth/refresh'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken }),
+            body: JSON.stringify({ refresh_token: refreshToken }),
           });
 
           const data = await res.json();
@@ -84,9 +95,13 @@ export const useAuthStore = create<AuthState>()(
             return false;
           }
 
+          // Express refresh response uses access_token (not accessToken)
+          const newAccessToken = data.data.access_token || data.data.accessToken;
+
           set({
-            accessToken: data.data.accessToken,
-            refreshToken: data.data.refreshToken,
+            accessToken: newAccessToken,
+            // Express refresh may not return a new refresh token
+            refreshToken: data.data.refresh_token || data.data.refreshToken || refreshToken,
           });
 
           return true;

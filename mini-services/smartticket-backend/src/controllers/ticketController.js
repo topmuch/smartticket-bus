@@ -28,7 +28,14 @@ exports.sellTicket = async (req, res) => {
 
     const price = tariff.price;
 
-    // 2. Générer un numéro de ticket unique
+    // 2. Trouver la session de caisse ouverte de l'opérateur
+    const openSession = db.prepare(`
+      SELECT id FROM cash_sessions 
+      WHERE operator_id = ? AND status = 'OPEN'
+    `).get(req.user.userId);
+    const cashSessionId = openSession ? openSession.id : null;
+
+    // 3. Générer un numéro de ticket unique
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const countResult = db.prepare(`
       SELECT COUNT(*) as cnt FROM tickets 
@@ -36,11 +43,11 @@ exports.sellTicket = async (req, res) => {
     `).get(`TK-${today}-%`);
     const ticketNumber = `TK-${today}-${String(countResult.cnt + 1).padStart(4, '0')}`;
 
-    // 3. Calculer la validité (2 heures à partir de maintenant)
+    // 4. Calculer la validité (2 heures à partir de maintenant)
     const validFrom = new Date().toISOString();
     const validUntil = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
-    // 4. Générer le QR Code sécurisé (JWT)
+    // 5. Générer le QR Code sécurisé (JWT)
     const ticketId = uuidv4();
     const qrToken = generateSecureQRCode({
       id: ticketId,
@@ -50,20 +57,20 @@ exports.sellTicket = async (req, res) => {
       valid_until: validUntil
     });
 
-    // 5. Insérer le ticket dans la base de données
+    // 6. Insérer le ticket dans la base de données
     const changeGiven = (amount_paid || price) - price;
 
     db.prepare(`
       INSERT INTO tickets (
         id, ticket_number, type, status, passenger_name, passenger_phone,
         passenger_photo_url, from_zone_id, to_zone_id, price, qr_token,
-        qr_signature, valid_from, valid_until, seller_id, amount_paid,
+        qr_signature, valid_from, valid_until, seller_id, cash_session_id, amount_paid,
         change_given, payment_method
-      ) VALUES (?, ?, 'single', 'VALID', ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, 'single', 'VALID', ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
     `).run(
       ticketId, ticketNumber, passenger_name || null, passenger_phone || null,
       passenger_photo_url || null, from_zone_id, to_zone_id, price, qrToken,
-      validFrom, validUntil, req.user.userId, amount_paid || price,
+      validFrom, validUntil, req.user.userId, cashSessionId, amount_paid || price,
       Math.max(0, changeGiven), payment_method || 'cash'
     );
 
@@ -385,6 +392,10 @@ exports.generateQRImage = async (req, res) => {
     }
 
     const imageUrl = await generateQRImage(ticket.qr_token);
+
+    if (!imageUrl) {
+      return res.status(500).json({ success: false, error: 'Erreur de génération de l\'image QR' });
+    }
 
     res.json({
       success: true,

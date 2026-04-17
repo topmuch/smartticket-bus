@@ -93,9 +93,14 @@ export default function ControllerStatsView() {
     if (!user) return;
     setLoading(true);
 
+    const isSuperAdmin = user.role === 'SUPERADMIN';
     const [statsRes, controlsRes] = await Promise.all([
-      apiFetch<ControlStats>('/api/controls/stats?controllerId=' + user.id),
-      apiFetch<{ controls: ControlRecord[] }>('/api/controls?controllerId=' + user.id + '&limit=50'),
+      isSuperAdmin
+        ? apiFetch<ControlStats>('/api/controls/stats')
+        : apiFetch<ControlStats>('/api/controls/stats?controllerId=' + user.id),
+      isSuperAdmin
+        ? apiFetch<{ controls: ControlRecord[] }>('/api/controls?limit=50')
+        : apiFetch<{ controls: ControlRecord[] }>('/api/controls?controllerId=' + user.id + '&limit=50'),
     ]);
 
     if (statsRes.success && statsRes.data) {

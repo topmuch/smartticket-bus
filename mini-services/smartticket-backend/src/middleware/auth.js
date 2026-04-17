@@ -70,14 +70,14 @@ function authorize(...allowedRoles) {
  */
 function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
+  req.user = null; // Toujours défini, null par défaut
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     try {
       req.user = jwt.verify(token, JWT_SECRET);
     } catch {
-      // Token invalide, on continue sans auth
-      req.user = null;
+      // Token invalide, req.user reste null
     }
   }
 
