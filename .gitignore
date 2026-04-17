@@ -32,10 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
-
 
 # typescript
 *.tsbuildinfo
@@ -50,5 +50,30 @@ test
 prompt
 
 server.log
+
 # Skills directory
 /skills/
+
+# ============================================
+# SmartTicket Bus - Fichiers ignorés
+# ============================================
+
+# Base de données SQLite
+db/*.db
+mini-services/smartticket-backend/data/*.db
+*.db
+
+# Fichiers de lock (regénérés à l'install)
+# bun.lock est conservé pour la reproductibilité
+
+# Logs temporaires
+/tmp/
+*.tmp
+
+# Fichiers de test temporaires
+test-api.mjs
+test-api.sh
+download/
+
+# Agent context (interne)
+agent-ctx/
