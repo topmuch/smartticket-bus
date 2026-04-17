@@ -53,7 +53,7 @@ function str(b) { return typeof b === 'string' ? b : JSON.stringify(b); }
 
 async function run() {
   console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║  🧪 SMARTTICKET BUS - TESTS DE SÉCURITÉ                   ║');
+  console.log('║  🧪 SMARTTICKET BUS - TESTS DE SÉCURITÉ (67 tests)           ║');
   console.log('╚══════════════════════════════════════════════════════════════╝');
 
   // ===== 1. AUTH JWT =====
@@ -181,16 +181,25 @@ async function run() {
   const qr = r.body?.data?.qr_code;
   t('3.7 Ticket vendu a QR code', !!qr && qr.length > 20);
 
-  r = await fetch('POST', '/scan', { qr_string: qr }, ctrlTk);
-  t('3.8 Contrôleur → POST /scan = VALID', r.body.result === 'VALID' || r.body.data?.result === 'VALID');
+  // Test via /scan/verify (nouvelle route spec)
+  r = await fetch('POST', '/scan/verify', { qr_token: qr, location_lat: 14.69, location_lng: -17.44 }, ctrlTk);
+  t('3.8 Contrôleur → POST /scan/verify = VALID', r.body.valid === true);
+  t('3.8b /scan/verify retourne details', !!r.body.details);
+  t('3.8c /scan/verify retourne zones', !!r.body.details?.zones);
+  t('3.8d /scan/verify retourne passenger_name', !!r.body.details?.passenger_name);
 
-  // Re-scan → ALREADY_USED
+  // Re-scan via /scan → ALREADY_USED (backward compat)
   r = await fetch('POST', '/scan', { qr_string: qr }, ctrlTk);
-  t('3.9 Re-scan → ALREADY_USED', r.body.result === 'ALREADY_USED' || r.body.data?.result === 'ALREADY_USED');
+  t('3.9 Re-scan → ALREADY_USED', r.body.valid === false && r.body.reason === 'already_used');
 
-  // Fake QR
-  r = await fetch('POST', '/scan', { qr_string: 'fake-tampered-token' }, ctrlTk);
-  t('3.10 Scan QR falsifié → FALSIFIED', r.body.result === 'FALSIFIED' || str(r.body).includes('FALSIFIED'));
+  // Fake QR via /scan/verify
+  r = await fetch('POST', '/scan/verify', { qr_token: 'fake-tampered-token' }, ctrlTk);
+  t('3.10 Scan QR falsifié → valid=false', r.body.valid === false);
+  t('3.10b Scan QR falsifié → reason=falsified', r.body.reason === 'falsified' || r.body.reason === 'FALSIFIED');
+
+  // Opérateur ne peut pas scanner
+  r = await fetch('POST', '/scan/verify', { qr_token: qr }, opTk);
+  t('3.10c Opérateur → POST /scan/verify = 403', r.status === 403);
 
   r = await fetch('GET', '/controls/stats', null, ctrlTk);
   t('3.11 Contrôleur → GET /controls/stats = 200', r.body.success === true);

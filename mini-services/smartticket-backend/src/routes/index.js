@@ -7,6 +7,7 @@ const router = express.Router();
 
 // Contrôleurs
 const ticketCtrl = require('../controllers/ticketController');
+const scanCtrl = require('../controllers/scanController');
 const adminCtrl = require('../controllers/adminController');
 const authCtrl = require('../controllers/authController');
 
@@ -136,7 +137,10 @@ router.put('/auth/change-password', authenticate, authCtrl.changePassword);
 router.post('/sell', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.sellTicket);
 
 // Scanner/Valider un ticket (CONTROLLER + SUPERADMIN)
-router.post('/scan', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), ticketCtrl.scanTicket);
+// /scan/verify est la route principale (format réponse: { valid, reason, message, details })
+// /scan est gardée pour backward compat (anciens tests)
+router.post('/scan/verify', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), scanCtrl.verifyTicket);
+router.post('/scan', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), scanCtrl.verifyTicket);
 
 // Liste des tickets
 router.get('/tickets', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.getTickets);

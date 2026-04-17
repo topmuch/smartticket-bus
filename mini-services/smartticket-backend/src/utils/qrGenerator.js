@@ -5,7 +5,12 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-const QR_SECRET = process.env.QR_SECRET || 'smartticket-qr-hmac-secret-key';
+const QR_SECRET = process.env.QR_SECRET;
+
+if (!QR_SECRET) {
+  console.error('❌ CRITIQUE: QR_SECRET n\'est pas défini dans .env');
+  console.error('   Générez une clé: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+}
 
 /**
  * Génère un QR Code sécurisé au format JWT

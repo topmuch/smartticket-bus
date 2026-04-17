@@ -573,3 +573,37 @@ Stage Summary:
 - 35/35 points daudit conformes a la spec utilisateur
 - Dev.log contient les resultats complets de tous les tests
 - Aucune faille de securite restante identifiee
+
+---
+Task ID: SCAN-CONTROLLER
+Agent: Main Orchestrator
+Task: Implementer scanController.js dedie + POST /scan/verify
+
+Work Log:
+- Analyse de l'ecart entre spec utilisateur et implementation existante (ticketController.scanTicket)
+- TROUVE ET CORRIGE: qrGenerator.js L8 avait QR_SECRET avec fallback hardcoded
+- Genere QR_SECRET cryptographique (64-char hex, different de JWT_SECRET)
+- Cree src/controllers/scanController.js avec logique de validation en 5 etapes:
+  1. Crypto check (hors DB) - rejette faux tickets instantanement
+  2. DB check - verifie annulation/suppression
+  3. Status check - CANCELLED, USED, EXPIRED
+  4. Type logic - single marque USED (anti race condition), subscription valide
+  5. Success - log control + audit + reponse formattee
+- Ajoute POST /scan/verify dans routes/index.js (garde POST /scan backward compat)
+- Accepte qr_token (spec) ET qr_string (backward compat)
+- Accepte location_lat/lng (spec) ET latitude/longitude (existant)
+- controller_id du JWT (plus sur que req.body.controller_id)
+- Reponse format: { valid, reason, message, details: { type, passenger_name, passenger_photo_url, zones } }
+- Anti race condition: UPDATE WHERE status=VALID + verification post-update
+- Detection double scan simultane
+- Messages humains pour chaque raison (getMessageForReason)
+- Corrige bug exports/module.exports dans scanController.js
+- Re-seed DB (nouveau QR_SECRET)
+- Execute 68 tests securite + 47 tests API = 115/115 PASS (100%)
+- Resultats ecrits dans dev.log
+
+Stage Summary:
+- 115/115 tests pass (68 security + 47 API) - 100% success rate
+- Route POST /api/v1/scan/verify operationnelle avec format reponse spec utilisateur
+- QR_SECRET fallback critique corrige
+- 38/38 points d'audit conformes a la spec

@@ -154,21 +154,22 @@ async function main() {
   }
 
   // ============================================
-  // VALIDATION (SCAN)
+  // VALIDATION (SCAN) - /scan/verify (nouvelle route)
   // ============================================
-  console.log('📋 SCAN TESTS');
+  console.log('📋 SCAN TESTS (/scan/verify)');
 
   if (ticketQR) {
-    await test('Validate Valid Ticket', 'POST', '/scan',
-      { qr_string: ticketQR, latitude: 14.69, longitude: -17.44 }, ctrlToken);
+    // Test via /scan/verify avec qr_token (format spec)
+    await test('Verify Valid Ticket (/scan/verify)', 'POST', '/scan/verify',
+      { qr_token: ticketQR, location_lat: 14.69, location_lng: -17.44 }, ctrlToken);
 
-    // Re-scan same ticket (should be ALREADY_USED)
-    await test('Validate Already Used', 'POST', '/scan',
+    // Re-scan same ticket via /scan (backward compat) — should be ALREADY_USED
+    await test('Validate Already Used (/scan)', 'POST', '/scan',
       { qr_string: ticketQR }, ctrlToken);
 
-    // Fake QR
-    await test('Validate Fake QR', 'POST', '/scan',
-      { qr_string: 'fake.jwt.token.here' }, ctrlToken);
+    // Fake QR via /scan/verify
+    await test('Validate Fake QR (/scan/verify)', 'POST', '/scan/verify',
+      { qr_token: 'fake.jwt.token.here' }, ctrlToken);
   }
 
   // ============================================
