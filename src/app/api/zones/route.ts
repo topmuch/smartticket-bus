@@ -3,8 +3,8 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
-// GET /api/zones - List all zones (SUPERADMIN, OPERATOR, CONTROLLER)
-export const GET = withAuth(async (req) => {
+// GET /api/zones - List all zones (PUBLIC READ)
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const active = searchParams.get('active');
@@ -13,7 +13,7 @@ export const GET = withAuth(async (req) => {
     // Build where clause
     const where: Prisma.ZoneWhereInput = {};
 
-    if (active !== null) {
+    if (active !== null && active !== '') {
       where.isActive = active === 'true';
     }
 
@@ -62,7 +62,7 @@ export const GET = withAuth(async (req) => {
       { status: 500 }
     );
   }
-}, ['SUPERADMIN', 'OPERATOR', 'CONTROLLER']);
+}
 
 // POST /api/zones - Create zone (SUPERADMIN only)
 export const POST = withAuth(async (req, user) => {

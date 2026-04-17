@@ -20,7 +20,7 @@ export function withAuth(
       const authHeader = req.headers.get('authorization');
       if (!authHeader?.startsWith('Bearer ')) {
         return NextResponse.json(
-          { error: 'Token d\'authentification requis' },
+          { success: false, error: "Token d'authentification requis" },
           { status: 401 }
         );
       }
@@ -30,7 +30,7 @@ export function withAuth(
 
       if (!user) {
         return NextResponse.json(
-          { error: 'Token invalide ou expiré' },
+          { success: false, error: "Token invalide ou expiré" },
           { status: 401 }
         );
       }
@@ -39,7 +39,7 @@ export function withAuth(
         const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
         if (!roles.includes(user.role)) {
           return NextResponse.json(
-            { error: 'Accès non autorisé pour ce rôle' },
+            { success: false, error: "Accès non autorisé pour ce rôle" },
             { status: 403 }
           );
         }
@@ -49,7 +49,7 @@ export function withAuth(
     } catch (error) {
       console.error('Auth middleware error:', error);
       return NextResponse.json(
-        { error: 'Erreur d\'authentification' },
+        { success: false, error: "Erreur d'authentification" },
         { status: 500 }
       );
     }
