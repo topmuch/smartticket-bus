@@ -77,3 +77,7 @@ download/
 
 # Agent context (interne)
 agent-ctx/
+
+# Environment files with secrets
+.env*
+!.env.example
