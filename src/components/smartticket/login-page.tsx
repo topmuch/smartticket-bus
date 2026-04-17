@@ -1,0 +1,171 @@
+'use client';
+
+import { useState } from 'react';
+import { Bus, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthStore } from '@/stores/auth-store';
+
+export function LoginPage() {
+  const login = useAuthStore((s) => s.login);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const result = await login(email, password);
+
+    if (!result.success) {
+      setError(result.error || 'Erreur de connexion');
+      setLoading(false);
+    }
+  };
+
+  const fillCredentials = (testEmail: string, testPassword: string) => {
+    setEmail(testEmail);
+    setPassword(testPassword);
+    setError('');
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
+      <div className="w-full max-w-md">
+        {/* Branding */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg">
+            <Bus className="w-9 h-9" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            SmartTicket Bus
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Système de billetterie intelligent
+          </p>
+        </div>
+
+        {/* Login Card */}
+        <Card className="shadow-xl border-border/50">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl">Connexion</CardTitle>
+            <CardDescription>
+              Entrez vos identifiants pour accéder au système
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Adresse e-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="nom@smartticket.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  disabled={loading}
+                  className="h-11"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  disabled={loading}
+                  className="h-11"
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full h-11 text-base font-semibold"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Connexion en cours...
+                  </>
+                ) : (
+                  'Se connecter'
+                )}
+              </Button>
+            </form>
+
+            {/* Test Credentials */}
+            <div className="mt-6 pt-4 border-t">
+              <p className="text-xs text-muted-foreground mb-3 text-center">
+                Comptes de test
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillCredentials('admin@smartticket.com', 'admin123')}
+                  className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold shrink-0">
+                    SA
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">Super Administrateur</div>
+                    <div className="text-xs text-muted-foreground truncate">admin@smartticket.com</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillCredentials('operateur@smartticket.com', 'operateur123')}
+                  className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-bold shrink-0">
+                    OP
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">Opérateur Guichet</div>
+                    <div className="text-xs text-muted-foreground truncate">operateur@smartticket.com</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillCredentials('controleur@smartticket.com', 'controleur123')}
+                  className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0">
+                    CT
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">Contrôleur</div>
+                    <div className="text-xs text-muted-foreground truncate">controleur@smartticket.com</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          &copy; {new Date().getFullYear()} SmartTicket Bus &mdash; Tous droits réservés
+        </p>
+      </div>
+    </div>
+  );
+}

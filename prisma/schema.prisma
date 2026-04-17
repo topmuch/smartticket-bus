@@ -1,0 +1,344 @@
+// SmartTicket Bus - Database Schema
+// SQLite with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// UTILISATEURS & AUTHENTIFICATION (RBAC)
+// ============================================
+
+enum Role {
+  SUPERADMIN
+  OPERATOR
+  CONTROLLER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role      @default(OPERATOR)
+  isActive      Boolean   @default(true)
+  phone         String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  soldTickets     Ticket[]     @relation("SoldBy")
+  cashSessions    CashSession[]
+  controls        Control[]    @relation("ControllerControls")
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, VALIDATE, SELL, etc.
+  entity    String   // User, Ticket, Zone, Line, etc.
+  entityId  String?
+  details   String?  // JSON string with additional context
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================
+// ZONES & TARIFICATION
+// ============================================
+
+model Zone {
+  id          String   @id @default(cuid())
+  code        String   @unique // "01", "02", "03"
+  name        String   // "Centre-ville", "Zone Est", etc.
+  description String?
+  color       String   @default("#3b82f6") // Hex color for map/UI
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  stops          Stop[]
+  faresFrom      Fare[]  @relation("FareFromZone")
+  faresTo        Fare[]  @relation("FareToZone")
+  subscriptions  Subscription[]
+  ticketsFrom    Ticket[] @relation("TicketFromZone")
+  ticketsTo      Ticket[] @relation("TicketToZone")
+
+  @@map("zones")
+}
+
+model Fare {
+  id          String  @id @default(cuid())
+  fromZoneId  String
+  toZoneId    String
+  price       Float   // Price in local currency
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fromZone Zone @relation("FareFromZone", fields: [fromZoneId], references: [id])
+  toZone   Zone @relation("FareToZone", fields: [toZoneId], references: [id])
+
+  @@unique([fromZoneId, toZoneId])
+  @@map("fares")
+}
+
+// ============================================
+// LIGNES, ARRÊTS & HORAIRES
+// ============================================
+
+model Line {
+  id        String   @id @default(cuid())
+  number    String   @unique // "L1", "L2", "A", "B", etc.
+  name      String   // "Ligne Centrale", "Express Est-Ouest"
+  color     String   @default("#16a34a") // Line color
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  lineStops LineStop[]
+  schedules Schedule[]
+  tickets   Ticket[]
+
+  @@map("lines")
+}
+
+model Stop {
+  id          String   @id @default(cuid())
+  name        String   // "Gare Routière", "Place de la République"
+  code        String   @unique // "ST001", "ST002"
+  zoneId      String
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  zone Zone @relation(fields: [zoneId], references: [id])
+
+  // Relations
+  lineStopsFrom LineStop[] @relation("LineStopFrom")
+  lineStopsTo   LineStop[] @relation("LineStopTo")
+  ticketsFrom   Ticket[]   @relation("TicketFromStop")
+  ticketsTo     Ticket[]   @relation("TicketToStop")
+
+  @@map("stops")
+}
+
+model LineStop {
+  id        String @id @default(cuid())
+  lineId    String
+  fromStopId String
+  toStopId   String
+  order     Int    // Order in the route
+  direction String @default("forward") // "forward" or "backward"
+  duration  Int?   // Estimated duration in minutes between stops
+
+  line     Line  @relation(fields: [lineId], references: [id])
+  fromStop Stop  @relation("LineStopFrom", fields: [fromStopId], references: [id])
+  toStop   Stop  @relation("LineStopTo", fields: [toStopId], references: [id])
+
+  @@unique([lineId, fromStopId, toStopId, direction])
+  @@map("line_stops")
+}
+
+model Schedule {
+  id         String @id @default(cuid())
+  lineId     String
+  dayOfWeek  Int    // 0=Dimanche, 1=Lundi, ..., 6=Samedi
+  startTime  String // "06:00"
+  endTime    String // "22:00"
+  frequency  Int    // Minutes between buses
+  isActive   Boolean @default(true)
+
+  line Line @relation(fields: [lineId], references: [id])
+
+  @@unique([lineId, dayOfWeek, startTime])
+  @@map("schedules")
+}
+
+// ============================================
+// TICKETS & ABONNEMENTS
+// ============================================
+
+enum TicketType {
+  UNIT
+  SUBSCRIPTION
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  EXPIRED
+  CANCELLED
+  INVALID
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  ticketNumber  String       @unique // Sequential number for printing
+  type          TicketType
+  status        TicketStatus @default(VALID)
+  
+  // Passenger info
+  passengerName  String?
+  passengerPhone String?
+  
+  // Route info
+  fromStopId     String?
+  toStopId       String?
+  fromZoneId     String?
+  toZoneId       String?
+  lineId         String?
+  
+  // Pricing
+  price          Float
+  
+  // QR Token - cryptographically signed
+  qrToken        String   @unique // JWT/HMAC signed payload
+  qrSignature    String   // HMAC-SHA256 signature
+  
+  // Validity
+  validFrom      DateTime
+  validTo        DateTime
+  
+  // Sale info
+  soldById       String
+  cashSessionId  String?
+  soldAt         DateTime  @default(now())
+  
+  // Payment
+  amountPaid     Float
+  changeGiven    Float    @default(0)
+  paymentMethod  String   @default("cash") // cash, mobile, card
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  fromStop     Stop?       @relation("TicketFromStop", fields: [fromStopId], references: [id])
+  toStop       Stop?       @relation("TicketToStop", fields: [toStopId], references: [id])
+  fromZone     Zone?       @relation("TicketFromZone", fields: [fromZoneId], references: [id])
+  toZone       Zone?       @relation("TicketToZone", fields: [toZoneId], references: [id])
+  line         Line?       @relation(fields: [lineId], references: [id])
+  soldBy       User        @relation("SoldBy", fields: [soldById], references: [id])
+  cashSession  CashSession? @relation(fields: [cashSessionId], references: [id])
+  subscription Subscription?
+  controls     Control[]
+
+  @@map("tickets")
+}
+
+model Subscription {
+  id            String   @id @default(cuid())
+  ticketId      String   @unique
+  passengerName String
+  passengerPhone String
+  passengerPhoto String? // Base64 or URL to photo
+  zoneId        String?  // null = all zones
+  durationDays  Int      @default(30)
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  zone   Zone?  @relation(fields: [zoneId], references: [id])
+
+  @@map("subscriptions")
+}
+
+// ============================================
+// CONTRÔLES (INSPECTIONS)
+// ============================================
+
+enum ControlResult {
+  VALID
+  INVALID
+  EXPIRED
+  ALREADY_USED
+  WRONG_ZONE
+  FALSIFIED
+  NOT_FOUND
+}
+
+model Control {
+  id          String        @id @default(cuid())
+  ticketId    String?
+  qrData      String        // Raw QR scan data
+  result      ControlResult
+  reason      String?       // Detailed reason for invalid result
+  controllerId String
+  scannedAt   DateTime      @default(now())
+  synced      Boolean       @default(false)
+  syncedAt    DateTime?
+  latitude    Float?
+  longitude   Float?
+  
+  // Offline sync batch
+  batchId     String?       // Group offline controls for sync
+
+  ticket     Ticket? @relation(fields: [ticketId], references: [id])
+  controller User    @relation("ControllerControls", fields: [controllerId], references: [id])
+
+  @@map("controls")
+}
+
+// ============================================
+// GESTION DE CAISSE
+// ============================================
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+model CashSession {
+  id             String           @id @default(cuid())
+  operatorId     String
+  date           DateTime
+  status         CashSessionStatus @default(OPEN)
+  openingBalance Float            @default(0)
+  totalSales     Int              @default(0)
+  totalRevenue   Float            @default(0)
+  expectedCash   Float            @default(0)
+  actualCash     Float?
+  difference     Float?
+  notes          String?
+  openedAt       DateTime         @default(now())
+  closedAt       DateTime?
+
+  operator User     @relation(fields: [operatorId], references: [id])
+  tickets  Ticket[]
+
+  @@map("cash_sessions")
+}
+
+// ============================================
+// CONFIGURATION SYSTÈME
+// ============================================
+
+model SystemConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
