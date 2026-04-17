@@ -140,7 +140,7 @@ export function AppShell() {
       case 'tickets':
         return <SalesHistory />;
       case 'controls':
-        return <SalesHistory />;
+        return <ControllerStats />;
       case 'reports':
         return <Reports />;
       case 'sell-ticket':

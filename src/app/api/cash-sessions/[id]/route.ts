@@ -3,16 +3,9 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
 
 // GET /api/cash-sessions/[id] - Get cash session by ID with tickets
-export const GET = withAuth(async (req) => {
+export const GET = withAuth(async (req, _user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de la session de caisse requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const session = await db.cashSession.findUnique({
       where: { id },
@@ -55,16 +48,9 @@ export const GET = withAuth(async (req) => {
 }, ['SUPERADMIN', 'OPERATOR']);
 
 // PUT /api/cash-sessions/[id] - Close cash session
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de la session de caisse requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { actualCash, notes } = body;

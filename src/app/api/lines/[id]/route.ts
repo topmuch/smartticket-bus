@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // GET /api/lines/[id] - Get line by ID with stops and schedules (public + authenticated)
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de ligne requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const line = await db.line.findUnique({
       where: { id },
@@ -54,17 +46,9 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/lines/[id] - Update line (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de ligne requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { number, name, color, isActive } = body;
@@ -124,17 +108,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/lines/[id] - Delete line (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de ligne requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const existing = await db.line.findUnique({
       where: { id },

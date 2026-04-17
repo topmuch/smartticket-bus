@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // GET /api/stops/[id] - Get stop by ID with zone info and lines (public + authenticated)
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'arrêt requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const stop = await db.stop.findUnique({
       where: { id },
@@ -89,17 +81,9 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/stops/[id] - Update stop (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'arrêt requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { name, code, zoneId, latitude, longitude, isActive } = body;
@@ -177,17 +161,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/stops/[id] - Delete stop (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'arrêt requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const existing = await db.stop.findUnique({
       where: { id },

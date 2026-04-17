@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // GET /api/schedules/[id] - Get schedule by ID (public + authenticated)
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'horaire requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const schedule = await db.schedule.findUnique({
       where: { id },
@@ -43,17 +35,9 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/schedules/[id] - Update schedule (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'horaire requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { lineId, dayOfWeek, startTime, endTime, frequency, isActive } = body;
@@ -165,17 +149,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/schedules/[id] - Delete schedule (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID d\'horaire requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const existing = await db.schedule.findUnique({ where: { id } });
 

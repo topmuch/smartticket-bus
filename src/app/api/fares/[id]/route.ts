@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // GET /api/fares/[id] - Get fare by ID (SUPERADMIN, OPERATOR, CONTROLLER)
-export const GET = withAuth(async (req) => {
+export const GET = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID du tarif requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const fare = await db.fare.findUnique({
       where: { id },
@@ -49,17 +41,9 @@ export const GET = withAuth(async (req) => {
 }, ['SUPERADMIN', 'OPERATOR', 'CONTROLLER']);
 
 // PUT /api/fares/[id] - Update fare (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID du tarif requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { price, isActive } = body;
@@ -139,17 +123,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/fares/[id] - Delete fare (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID du tarif requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     // Check fare exists
     const existingFare = await db.fare.findUnique({

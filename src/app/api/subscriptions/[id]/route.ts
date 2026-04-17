@@ -3,16 +3,9 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
 
 // GET /api/subscriptions/[id] - Get subscription by ID with full details
-export const GET = withAuth(async (req) => {
+export const GET = withAuth(async (req, _user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de l\'abonnement requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const subscription = await db.subscription.findUnique({
       where: { id },
@@ -62,16 +55,9 @@ export const GET = withAuth(async (req) => {
 }, ['SUPERADMIN']);
 
 // PUT /api/subscriptions/[id] - Update subscription (deactivate)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de l\'abonnement requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { isActive, passengerName, passengerPhone, passengerPhoto } = body;

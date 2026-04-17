@@ -61,13 +61,13 @@ interface Line {
 interface FareCalcResult {
   price: number;
   fareId: string | null;
-  fromZone: string;
-  toZone: string;
+  fromZoneName: string;
+  toZoneName: string;
   message: string;
 }
 
 type TicketType = 'UNIT' | 'SUBSCRIPTION';
-type PaymentMethod = 'ESPECES' | 'MOBILE_MONEY' | 'CARTE';
+type PaymentMethod = 'cash' | 'mobile' | 'card';
 
 const STEPS = ['Type', 'Trajet', 'Passager', 'Paiement'];
 
@@ -91,7 +91,7 @@ export default function TicketSalesView() {
   const [passengerPhone, setPassengerPhone] = useState('');
   const [passengerPhoto, setPassengerPhoto] = useState('');
   const [durationDays, setDurationDays] = useState(30);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ESPECES');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -183,7 +183,7 @@ export default function TicketSalesView() {
   };
 
   const handleSell = async () => {
-    if (paymentMethod === 'ESPECES' && Number(amountPaid) < price) {
+    if (paymentMethod === 'cash' && Number(amountPaid) < price) {
       setError('Le montant reçu est insuffisant.');
       return;
     }
@@ -195,7 +195,7 @@ export default function TicketSalesView() {
       fromStopId,
       toStopId,
       price,
-      amountPaid: paymentMethod === 'ESPECES' ? Number(amountPaid) : price,
+      amountPaid: paymentMethod === 'cash' ? Number(amountPaid) : price,
       paymentMethod,
       passengerName: passengerName || null,
       passengerPhone: passengerPhone || null,
@@ -240,7 +240,7 @@ export default function TicketSalesView() {
     setPassengerPhone('');
     setPassengerPhoto('');
     setDurationDays(30);
-    setPaymentMethod('ESPECES');
+    setPaymentMethod('cash');
     setAmountPaid('');
     setNotes('');
     setFareResult(null);
@@ -493,7 +493,7 @@ export default function TicketSalesView() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Zones</span>
                   <span className="font-medium text-sm">
-                    {fareResult.fromZone} → {fareResult.toZone}
+                    {fareResult.fromZoneName} → {fareResult.toZoneName}
                   </span>
                 </div>
                 <Separator />
@@ -712,15 +712,15 @@ export default function TicketSalesView() {
               <Label className="text-sm font-semibold">Mode de paiement</Label>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { value: 'ESPECES' as PaymentMethod, icon: Banknote, label: 'Espèces' },
-                  { value: 'MOBILE_MONEY' as PaymentMethod, icon: Smartphone, label: 'Mobile Money' },
-                  { value: 'CARTE' as PaymentMethod, icon: CreditCard, label: 'Carte' },
+                  { value: 'cash' as PaymentMethod, icon: Banknote, label: 'Espèces' },
+                  { value: 'mobile' as PaymentMethod, icon: Smartphone, label: 'Mobile Money' },
+                  { value: 'card' as PaymentMethod, icon: CreditCard, label: 'Carte' },
                 ].map((method) => (
                   <button
                     key={method.value}
                     onClick={() => {
                       setPaymentMethod(method.value);
-                      if (method.value !== 'ESPECES') setAmountPaid(String(price));
+                      if (method.value !== 'cash') setAmountPaid(String(price));
                     }}
                     className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all gap-2 ${
                       paymentMethod === method.value
@@ -736,7 +736,7 @@ export default function TicketSalesView() {
             </div>
 
             {/* Cash payment */}
-            {paymentMethod === 'ESPECES' && (
+            {paymentMethod === 'cash' && (
               <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <Label htmlFor="amountPaid" className="text-sm font-semibold flex items-center gap-1">
                   <Banknote className="w-4 h-4" /> Montant reçu (FCFA)
@@ -789,11 +789,11 @@ export default function TicketSalesView() {
             )}
 
             {/* Mobile Money / Card confirmation */}
-            {paymentMethod !== 'ESPECES' && (
+            {paymentMethod !== 'cash' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <p className="text-sm text-blue-600">
                   Le montant de <strong>{formatCurrency(price)}</strong> sera encaissé via{' '}
-                  {paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : 'Carte bancaire'}.
+                  {paymentMethod === 'mobile' ? 'Mobile Money' : 'Carte bancaire'}.
                 </p>
               </div>
             )}
@@ -814,7 +814,7 @@ export default function TicketSalesView() {
               </Button>
               <Button
                 onClick={handleSell}
-                disabled={loading || (paymentMethod === 'ESPECES' && Number(amountPaid) < price)}
+                disabled={loading || (paymentMethod === 'cash' && Number(amountPaid) < price)}
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 text-white font-bold text-lg h-14 px-8"
               >

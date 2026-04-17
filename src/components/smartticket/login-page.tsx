@@ -120,7 +120,7 @@ export function LoginPage() {
               <div className="grid grid-cols-1 gap-2">
                 <button
                   type="button"
-                  onClick={() => fillCredentials('admin@smartticket.com', 'admin123')}
+                  onClick={() => fillCredentials('admin@smartticket.bus', 'Admin@123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold shrink-0">
@@ -128,12 +128,12 @@ export function LoginPage() {
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-foreground truncate">Super Administrateur</div>
-                    <div className="text-xs text-muted-foreground truncate">admin@smartticket.com</div>
+                    <div className="text-xs text-muted-foreground truncate">admin@smartticket.bus</div>
                   </div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => fillCredentials('operateur@smartticket.com', 'operateur123')}
+                  onClick={() => fillCredentials('guichet1@smartticket.bus', 'Oper@123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-bold shrink-0">
@@ -141,12 +141,12 @@ export function LoginPage() {
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-foreground truncate">Opérateur Guichet</div>
-                    <div className="text-xs text-muted-foreground truncate">operateur@smartticket.com</div>
+                    <div className="text-xs text-muted-foreground truncate">guichet1@smartticket.bus</div>
                   </div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => fillCredentials('controleur@smartticket.com', 'controleur123')}
+                  onClick={() => fillCredentials('control1@smartticket.bus', 'Control@123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0">
@@ -154,7 +154,7 @@ export function LoginPage() {
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-foreground truncate">Contrôleur</div>
-                    <div className="text-xs text-muted-foreground truncate">controleur@smartticket.com</div>
+                    <div className="text-xs text-muted-foreground truncate">control1@smartticket.bus</div>
                   </div>
                 </button>
               </div>

@@ -5,13 +5,17 @@ export interface AuthenticatedRequest extends NextRequest {
   user?: JWTPayload;
 }
 
+export interface RouteContext {
+  params: Promise<Record<string, string>>;
+}
+
 type RoleCheck = 'SUPERADMIN' | 'OPERATOR' | 'CONTROLLER' | Array<'SUPERADMIN' | 'OPERATOR' | 'CONTROLLER'>;
 
 export function withAuth(
-  handler: (req: AuthenticatedRequest, user: JWTPayload) => Promise<NextResponse>,
+  handler: (req: AuthenticatedRequest, user: JWTPayload, context: RouteContext) => Promise<NextResponse>,
   allowedRoles?: RoleCheck
 ) {
-  return async (req: NextRequest) => {
+  return async (req: NextRequest, context: RouteContext) => {
     try {
       const authHeader = req.headers.get('authorization');
       if (!authHeader?.startsWith('Bearer ')) {
@@ -41,7 +45,7 @@ export function withAuth(
         }
       }
 
-      return handler(req as AuthenticatedRequest, user);
+      return handler(req as AuthenticatedRequest, user, context);
     } catch (error) {
       console.error('Auth middleware error:', error);
       return NextResponse.json(

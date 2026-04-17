@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // PUT /api/line-stops/[id] - Update line stop (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de liaison ligne-arrêt requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { fromStopId, toStopId, order, direction, duration } = body;
@@ -134,17 +126,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/line-stops/[id] - Remove line stop (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID de liaison ligne-arrêt requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const existing = await db.lineStop.findUnique({
       where: { id },

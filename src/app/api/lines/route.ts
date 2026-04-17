@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/lines - Create line (SUPERADMIN only)
-export const POST = withAuth(async (req) => {
+export const POST = withAuth(async (req, user, _context) => {
   try {
     const body = await req.json();
     const { number, name, color, isActive } = body;
@@ -78,7 +78,7 @@ export const POST = withAuth(async (req) => {
     // Audit log
     await db.auditLog.create({
       data: {
-        userId: req.user!.userId,
+        userId: user.userId,
         action: 'CREATE',
         entity: 'Line',
         entityId: line.id,

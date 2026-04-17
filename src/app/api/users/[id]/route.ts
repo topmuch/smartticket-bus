@@ -4,17 +4,9 @@ import { withAuth } from '@/lib/middleware';
 import { Prisma } from '@prisma/client';
 
 // GET /api/users/[id] - Get user by ID (SUPERADMIN only)
-export const GET = withAuth(async (req, user) => {
+export const GET = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID utilisateur requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const foundUser = await db.user.findUnique({
       where: { id },
@@ -52,17 +44,9 @@ export const GET = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // PUT /api/users/[id] - Update user (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID utilisateur requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
     const { name, email, role, isActive, phone } = body;
@@ -153,17 +137,9 @@ export const PUT = withAuth(async (req, user) => {
 }, 'SUPERADMIN');
 
 // DELETE /api/users/[id] - Soft-delete user (SUPERADMIN only)
-export const DELETE = withAuth(async (req, user) => {
+export const DELETE = withAuth(async (req, user, context) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID utilisateur requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     // Check user exists
     const existingUser = await db.user.findUnique({

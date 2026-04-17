@@ -3,16 +3,9 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
 
 // GET /api/tickets/[id] - Get ticket by ID with full details
-export const GET = withAuth(async (req, _user) => {
+export const GET = withAuth(async (req, _user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID du ticket requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const ticket = await db.ticket.findUnique({
       where: { id },
@@ -77,16 +70,9 @@ export const GET = withAuth(async (req, _user) => {
 }, ['SUPERADMIN', 'OPERATOR']);
 
 // PUT /api/tickets/[id] - Cancel ticket (SUPERADMIN only)
-export const PUT = withAuth(async (req, user) => {
+export const PUT = withAuth(async (req, user, context) => {
   try {
-    const id = req.params?.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID du ticket requis' },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await req.json();
 
