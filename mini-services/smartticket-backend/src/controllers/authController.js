@@ -6,8 +6,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { db } = require('../config/db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'smartticket-bus-jwt-secret-key-2024';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'smartticket-bus-refresh-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
@@ -21,6 +21,14 @@ exports.login = async (req, res) => {
     return res.status(400).json({
       success: false,
       error: "Email et mot de passe requis"
+    });
+  }
+
+  if (!JWT_SECRET) {
+    console.error('❌ CRITIQUE: JWT_SECRET n\'est pas défini dans .env');
+    return res.status(500).json({
+      success: false,
+      error: "Erreur de configuration serveur"
     });
   }
 
@@ -123,6 +131,11 @@ exports.refresh = (req, res) => {
       success: false,
       error: "Refresh token requis"
     });
+  }
+
+  if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+    console.error('❌ CRITIQUE: JWT_SECRET ou JWT_REFRESH_SECRET non défini');
+    return res.status(500).json({ success: false, error: "Erreur de configuration serveur" });
   }
 
   try {
