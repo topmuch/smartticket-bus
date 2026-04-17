@@ -501,3 +501,48 @@ Stage Summary:
 - ESLint: 0 errors
 - Full ticket lifecycle verified through Express backend
 - RBAC verified on all protected endpoints
+
+---
+Task ID: SECURITY-HARDENING
+Agent: Main Orchestrator
+Task: Sécuriser l'API avec Auth JWT + RBAC + Rate Limiting + Helmet
+
+Work Log:
+- Analysé l'écart entre la spec utilisateur et notre implémentation
+- Corrigé l'ordre de vérification: is_active AVANT password check (anti-timing attack)
+- Ajouté audit logging pour les tentatives de login échouées (LOGIN_FAILED)
+- Créé middleware rateLimit() générique (200 req/15min global, configurable)
+- Créé middleware loginRateLimit() (5 tentatives/15min par IP, configurable)
+- Ajouté log des rôles dans requestLogger: [SUPERADMIN] [OPERATOR] [CONTROLLER] [PUBLIC]
+- Sécurisé authenticate(): vérifie JWT_SECRET défini, messages d'erreur distincts (token manquant/expiré/invalide)
+- Amélioré authorize(): message d'erreur formaté avec "ou" entre les rôles
+- Renforcé Helmet CSP + HSTS en production, désactivé en dev
+- Ajouté CORS configurable via env var CORS_ORIGINS (credentials + maxAge)
+- Créé .env avec JWT_SECRET, JWT_REFRESH_SECRET, CORS_ORIGINS, LOGIN_RATE_MAX/WINDOW
+- Affichage dashboard sécurité au démarrage (JWT, Helmet, CORS, Rate Limit, RBAC)
+- Fix updateUser(): UPDATE dynamique (ne reset pas les champs non fournis à NULL)
+- Créé test-security.js: 63 tests de sécurité (auth, RBAC, rate limit, helmet, public, disable account, password change, 404)
+
+Security Test Results (63/63 PASS — 100%):
+  AUTH JWT (19/19): Login 3 rôles ✅, JWT payload (userId/role/email) ✅, Refresh token ✅, Token invalide → 403 ✅, Pas de token → 401 ✅, GET /me ✅
+  RBAC (13/13): Opérateur/Contrôleur bloqués sur users/dashboard/sell/scan/tariffs/zones/audit/controls/sync/export ✅
+  ACCÈS AUTORISÉS (13/13): Admin users/dashboard/revenue/tariffs/audit ✅, Opérateur sell/cash-sessions ✅, Contrôleur scan/controls/offline ✅, VALID → ALREADY_USED → FALSIFIED ✅
+  RATE LIMITING (3/3): 6ème tentative → 429 ✅, Bon password bloqué → 429 ✅, Message présent ✅
+  HELMET (3/3): X-Content-Type-Options: nosniff ✅, X-Frame-Options ✅, Helmet actif ✅
+  ROUTES PUBLIQUES (5/5): zones/lines/stops/schedules/info ✅
+  COMPTE DÉSACTIVÉ (2/2): Désactivation ✅, Login refusé ✅
+  CHANGEMENT PASSWORD (3/3): Changement OK ✅, Ancien rejeté ✅, Nouveau accepté ✅
+  ERREURS (2/2): 404 route ✅, 404 utilisateur ✅
+
+API Test Results (47/47 PASS — 100%): unchanged after security hardening
+
+Stage Summary:
+- 110 total tests pass (47 API + 63 Security) — 100% success rate
+- JWT authentication with access + refresh tokens
+- RBAC with 3 roles: SUPERADMIN, OPERATOR, CONTROLLER
+- Rate limiting: 200 req/15min global + 5 login attempts/15min per IP
+- Helmet security headers active (CSP, X-Frame-Options, nosniff)
+- CORS configurable via environment variables
+- Anti-timing: is_active checked before password verification
+- Account deactivation blocks login with clear error message
+- .env with secure defaults and configuration guide

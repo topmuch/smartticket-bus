@@ -70,11 +70,16 @@ function rateLimit(options = {}) {
  */
 const loginAttempts = new Map();
 
+// Fonction pour réinitialiser le rate limiter (utile en dev/test)
+function resetLoginRateLimit(ip) {
+  if (ip) loginAttempts.delete(ip);
+}
+
 function loginRateLimit(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const now = Date.now();
-  const windowMs = 15 * 60 * 1000; // 15 minutes
-  const maxAttempts = 5;
+  const windowMs = parseInt(process.env.LOGIN_RATE_WINDOW_MS) || 15 * 60 * 1000; // 15 min
+  const maxAttempts = parseInt(process.env.LOGIN_RATE_MAX) || 5;
 
   // Nettoyage périodique
   if (loginAttempts.size > 5000) {
@@ -111,8 +116,8 @@ function loginRateLimit(req, res, next) {
       }
     }
 
-    // Si login réussi (200), réinitialiser le compteur
-    if (res.statusCode === 200 && req.originalUrl.includes('/auth/login') && data.success) {
+    // Si login réussi, réinitialiser le compteur
+    if (req.originalUrl.includes('/auth/login') && data && data.success === true) {
       loginAttempts.delete(ip);
     }
 

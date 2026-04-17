@@ -376,13 +376,34 @@ exports.createUser = async (req, res) => {
 exports.updateUser = (req, res) => {
   try {
     const { name, role, phone, is_active } = req.body;
-    db.prepare(`
-      UPDATE users SET name = ?, role = ?, phone = ?, is_active = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(name, role, phone, is_active !== undefined ? (is_active ? 1 : 0) : 1, req.params.id);
+
+    // Construire dynamiquement la requête UPDATE (uniquement les champs fournis)
+    const existing = db.prepare('SELECT id, name, role, phone, is_active FROM users WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+
+    const fields = [];
+    const values = [];
+
+    if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+    if (role !== undefined) { fields.push('role = ?'); values.push(role); }
+    if (phone !== undefined) { fields.push('phone = ?'); values.push(phone); }
+    if (is_active !== undefined) { fields.push('is_active = ?'); values.push(is_active ? 1 : 0); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: 'Aucun champ à mettre à jour' });
+    }
+
+    fields.push("updated_at = datetime('now')");
+    values.push(req.params.id);
+
+    db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...values);
 
     const user = db.prepare('SELECT id, email, name, role, is_active, phone FROM users WHERE id = ?').get(req.params.id);
-    if (!user) return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+
+    db.prepare(`
+      INSERT INTO audit_logs (user_id, action, entity, entity_id, details)
+      VALUES (?, 'UPDATE', 'User', ?, ?)
+    `).run(req.user.userId, req.params.id, JSON.stringify({ name, role, is_active }));
 
     res.json({ success: true, message: 'Utilisateur mis à jour', data: user });
   } catch (error) {
