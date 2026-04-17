@@ -38,11 +38,30 @@ function log(testId, desc, result, expectStatus = null) {
   results.push({ testId, desc, status: result.status, ok: expectedOk, elapsed: result.elapsed });
 }
 
+async function warmup() {
+  // Wait for server to be ready with retries
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await fetch(`${BASE}/api/public/info`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return true;
+    } catch { /* retry */ }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
 async function main() {
   console.log('='.repeat(60));
   console.log('  SMARTTICKET BUS - TESTS COMPLETS');
   console.log(`  Date: ${new Date().toISOString()}`);
   console.log('='.repeat(60));
+  console.log('\n[Warmup] Waiting for server...');
+  const ready = await warmup();
+  if (!ready) {
+    console.error('ERROR: Server not responding after 20s. Aborting.');
+    process.exit(1);
+  }
+  console.log('[Warmup] Server is ready!\n');
 
   // ==================== AUTH ====================
   console.log('\n=== AUTHENTIFICATION ===');
@@ -330,6 +349,15 @@ async function main() {
 
   r = await request('GET', '/api/line-stops', null, adminToken);
   log('LS1', 'GET line stops', r);
+
+  // ==================== OFFLINE DATA ====================
+  console.log('\n=== DONNEES HORS-LIGNE ===');
+
+  r = await request('GET', '/api/offline/data', null, ctrlToken);
+  log('OF1', 'GET offline data (controller)', r);
+
+  r = await request('GET', '/api/offline/data', null, adminToken);
+  log('OF2', 'GET offline data (admin)', r);
 
   // ==================== SUMMARY ====================
   console.log('\n' + '='.repeat(60));

@@ -41,6 +41,7 @@ import TicketSales from './views/ticket-sales';
 import SalesHistory from './views/sales-history';
 import CashSession from './views/cash-session';
 import QrScanner from './views/qr-scanner';
+import MyControls from './views/my-controls';
 import ControllerStats from './views/controller-stats';
 
 export type ViewId =
@@ -152,7 +153,7 @@ export function AppShell() {
       case 'scan-qr':
         return <QrScanner />;
       case 'my-controls':
-        return <QrScanner />;
+        return <MyControls />;
       case 'controller-stats':
         return <ControllerStats />;
       default:

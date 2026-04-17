@@ -40,9 +40,9 @@ export const POST = withAuth(async (req, user) => {
 
     const payload = qrResult.payload;
 
-    // Find ticket by ticketId from QR payload
+    // Find ticket by tid (ticket ID) from JWT QR payload
     const ticket = await db.ticket.findUnique({
-      where: { id: payload.ticketId },
+      where: { id: payload.tid },
       include: {
         soldBy: {
           select: { id: true, name: true, email: true },
@@ -62,7 +62,7 @@ export const POST = withAuth(async (req, user) => {
         data: {
           qrData: qrString,
           result: 'NOT_FOUND',
-          reason: `Ticket ${payload.ticketId} introuvable en base de données`,
+          reason: `Ticket ${payload.tid} introuvable en base de données`,
           controllerId: user.userId,
         },
       });
@@ -214,7 +214,7 @@ export const POST = withAuth(async (req, user) => {
   } catch (error: any) {
     console.error('Error validating ticket:', error);
     return NextResponse.json(
-      { success: false, error: 'Erreur lors de la validation du ticket' },
+      { success: false, error: 'Erreur lors de la validation du ticket', debug: error?.message, stack: error?.stack?.slice(0, 300) },
       { status: 500 }
     );
   }

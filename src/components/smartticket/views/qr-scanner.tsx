@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch, formatDate, formatCurrency, getStatusColor, getStatusLabel } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
+import { useOfflineSync } from '@/hooks/use-offline-sync';
+import { verifyQROffline, OfflineVerifyResponse } from '@/lib/offline-qr-verify';
+import { addPendingControl } from '@/lib/offline-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +31,14 @@ import {
   ShieldCheck,
   ShieldX,
   Smartphone,
+  WifiOff,
+  Wifi,
+  Download,
+  Upload,
+  CloudOff,
 } from 'lucide-react';
 
-type ScanResult = 'VALID' | 'EXPIRED' | 'ALREADY_USED' | 'FALSIFIED' | 'NOT_FOUND' | 'INVALID';
+type ScanResult = 'VALID' | 'EXPIRED' | 'ALREADY_USED' | 'FALSIFIED' | 'NOT_FOUND' | 'INVALID' | 'BLACKLISTED';
 
 interface ValidationResult {
   success: boolean;
@@ -54,6 +62,7 @@ interface ValidationResult {
     reason?: string;
   };
   error?: string;
+  offline?: boolean;
 }
 
 const RESULT_CONFIG: Record<ScanResult, { icon: React.ReactNode; color: string; label: string; bg: string }> = {
@@ -81,6 +90,12 @@ const RESULT_CONFIG: Record<ScanResult, { icon: React.ReactNode; color: string; 
     label: 'TICKET FALSIFIÉ',
     bg: 'bg-red-50 border-red-200',
   },
+  BLACKLISTED: {
+    icon: <ShieldX className="w-16 h-16" />,
+    color: 'text-red-600',
+    label: 'TICKET ANNULÉ',
+    bg: 'bg-red-50 border-red-200',
+  },
   NOT_FOUND: {
     icon: <XCircle className="w-16 h-16" />,
     color: 'text-gray-600',
@@ -103,11 +118,25 @@ export default function QrScannerView() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [todayValid, setTodayValid] = useState(0);
   const [todayInvalid, setTodayInvalid] = useState(0);
+  const [syncResult, setSyncResult] = useState<{ synced: number; failed: number } | null>(null);
   const autoResetRef = useRef<NodeJS.Timeout | null>(null);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const syncResultRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const {
+    isOnline,
+    pendingCount,
+    isSyncing,
+    isDownloading,
+    lastSyncError,
+    syncPendingControls,
+    downloadOfflineData,
+    fullSync,
+  } = useOfflineSync();
+
   const fetchTodayStats = useCallback(async () => {
+    if (!isOnline) return; // Can't fetch stats offline
     const user = useAuthStore.getState().user;
     if (!user) return;
 
@@ -121,12 +150,15 @@ export default function QrScannerView() {
       setTodayValid(res.data.validCount);
       setTodayInvalid(res.data.invalidCount);
     }
-  }, []);
+  }, [isOnline]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTodayStats();
   }, [fetchTodayStats]);
+
+  // Note: pending controls auto-sync is handled via the Synchroniser button.
+  // We intentionally do not auto-sync on reconnect to avoid unexpected state mutations.
 
   const playBeep = (isValid: boolean) => {
     if (!soundEnabled) return;
@@ -152,6 +184,57 @@ export default function QrScannerView() {
     }
   };
 
+  const queueOfflineControl = async (
+    qrString: string,
+    result: string,
+    reason?: string
+  ) => {
+    await addPendingControl({
+      qrString,
+      result,
+      reason,
+      scannedAt: new Date().toISOString(),
+    });
+  };
+
+  const convertOfflineResult = (
+    offlineRes: OfflineVerifyResponse
+  ): ValidationResult => {
+    return {
+      success: offlineRes.result === 'VALID',
+      offline: true,
+      data: offlineRes.payload
+        ? {
+            ticket: {
+              id: offlineRes.payload.ticketId,
+              ticketNumber: offlineRes.payload.ticketNumber,
+              type: offlineRes.payload.type,
+              status: offlineRes.result === 'VALID' ? 'VALID' : offlineRes.result,
+              price: 0,
+              validFrom: offlineRes.payload.validFrom,
+              validTo: offlineRes.payload.validTo,
+              passengerName: offlineRes.payload.passengerName || null,
+              passengerPhone: null,
+              passengerPhoto: null,
+              fromStop: offlineRes.payload.fromStop
+                ? { name: offlineRes.payload.fromStop }
+                : null,
+              toStop: offlineRes.payload.toStop
+                ? { name: offlineRes.payload.toStop }
+                : null,
+              line: null,
+            },
+            result: offlineRes.result as ScanResult,
+            reason: offlineRes.reason,
+          }
+        : undefined,
+      error:
+        offlineRes.result !== 'VALID' && !offlineRes.payload
+          ? offlineRes.reason
+          : undefined,
+    };
+  };
+
   const handleScan = async (qrString: string) => {
     if (!qrString.trim() || scanning || cooldown) return;
 
@@ -160,17 +243,64 @@ export default function QrScannerView() {
 
     if (autoResetRef.current) clearTimeout(autoResetRef.current);
 
-    const res = await apiFetch('/api/tickets/validate', {
-      method: 'POST',
-      body: JSON.stringify({ qrString: qrString.trim() }),
-    });
+    const trimmedQr = qrString.trim();
 
-    setScanResult(res);
-    setScanning(false);
+    if (!isOnline) {
+      // Offline validation
+      try {
+        const offlineRes = await verifyQROffline(trimmedQr);
+        const result = convertOfflineResult(offlineRes);
 
-    const isValid = res.success === true;
-    playBeep(isValid);
-    fetchTodayStats();
+        // Queue the control for later sync
+        await queueOfflineControl(trimmedQr, offlineRes.result, offlineRes.reason);
+
+        setScanResult(result);
+        setScanning(false);
+
+        const isValid = offlineRes.result === 'VALID';
+        playBeep(isValid);
+      } catch {
+        setScanResult({
+          success: false,
+          offline: true,
+          error: 'Erreur de validation hors-ligne',
+          data: {
+            ticket: {
+              id: '',
+              ticketNumber: '',
+              type: 'UNIT',
+              status: 'INVALID',
+              price: 0,
+              validFrom: '',
+              validTo: '',
+              passengerName: null,
+              passengerPhone: null,
+              passengerPhoto: null,
+              fromStop: null,
+              toStop: null,
+              line: null,
+            },
+            result: 'INVALID',
+            reason: 'Erreur de validation hors-ligne',
+          },
+        });
+        setScanning(false);
+        playBeep(false);
+      }
+    } else {
+      // Online validation (server API)
+      const res = await apiFetch('/api/tickets/validate', {
+        method: 'POST',
+        body: JSON.stringify({ qrString: trimmedQr }),
+      });
+
+      setScanResult(res);
+      setScanning(false);
+
+      const isValid = res.success === true;
+      playBeep(isValid);
+      fetchTodayStats();
+    }
 
     // Auto reset after 3 seconds
     autoResetRef.current = setTimeout(() => {
@@ -185,7 +315,6 @@ export default function QrScannerView() {
   };
 
   const handleDemoScan = () => {
-    // Generate a demo QR string for testing
     const demoStrings = [
       'SMARTTK|TK-20250101-0001|1735689600|1735700400|abc123|demo_sig',
       'SMARTTK|EXPIRED-TICKET|1700000000|1700000001|xyz|expired_sig',
@@ -194,6 +323,15 @@ export default function QrScannerView() {
     const randomDemo = demoStrings[Math.floor(Math.random() * demoStrings.length)];
     setQrInput(randomDemo);
     handleScan(randomDemo);
+  };
+
+  const handleSync = async () => {
+    const result = await fullSync();
+    setSyncResult(result);
+    fetchTodayStats();
+
+    if (syncResultRef.current) clearTimeout(syncResultRef.current);
+    syncResultRef.current = setTimeout(() => setSyncResult(null), 4000);
   };
 
   const resultType: ScanResult | null = scanResult?.data
@@ -208,16 +346,139 @@ export default function QrScannerView() {
     return () => {
       if (autoResetRef.current) clearTimeout(autoResetRef.current);
       if (cooldownRef.current) clearTimeout(cooldownRef.current);
+      if (syncResultRef.current) clearTimeout(syncResultRef.current);
     };
   }, []);
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
+      {/* Offline Indicator Banner */}
+      {!isOnline && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-center gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+            <WifiOff className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              Mode hors-ligne
+            </p>
+            <p className="text-xs text-amber-600">
+              Les tickets sont vérifiés localement. Les contrôles seront synchronisés automatiquement.
+            </p>
+          </div>
+          <Badge variant="outline" className="flex-shrink-0 bg-amber-100 text-amber-700 border-amber-300 text-xs">
+            HORS-LIGNE
+          </Badge>
+        </div>
+      )}
+
+      {/* Sync Status & Controls */}
+      {(pendingCount > 0 || !isOnline || syncResult || lastSyncError) && (
+        <Card className="border-dashed">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {isOnline ? (
+                  <Wifi className="w-4 h-4 text-green-600 flex-shrink-0" />
+                ) : (
+                  <CloudOff className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {isOnline
+                      ? 'Connecté'
+                      : 'Hors-ligne'}
+                  </p>
+                  {pendingCount > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {pendingCount} contrôle{pendingCount > 1 ? 's' : ''} en attente de synchronisation
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {syncResult && (
+                  <span className="text-xs text-green-600 font-medium">
+                    {syncResult.synced} synchronisé{syncResult.synced > 1 ? 's' : ''}
+                  </span>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSync}
+                  disabled={isSyncing || isDownloading || (!isOnline && pendingCount === 0)}
+                  className="text-xs h-8"
+                >
+                  {isSyncing || isDownloading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  Synchroniser
+                </Button>
+              </div>
+            </div>
+
+            {lastSyncError && (
+              <p className="text-xs text-red-500 mt-2">{lastSyncError}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Download Offline Data Button (when online) */}
+      {isOnline && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+            onClick={downloadOfflineData}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+            ) : (
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Télécharger données hors-ligne
+          </Button>
+          {pendingCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={syncPendingControls}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Upload className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Envoyer contrôles ({pendingCount})
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Scanner Area */}
       <Card className={`border-2 ${scanResult ? (resultType === 'VALID' ? 'border-green-400' : 'border-red-400') : 'border-primary/30'} transition-colors`}>
         <CardContent className="p-4">
           {/* Viewfinder */}
           <div className="relative aspect-square max-w-[300px] mx-auto rounded-2xl overflow-hidden bg-gray-950 mb-4">
+            {/* Offline overlay indicator in viewfinder */}
+            {!isOnline && !scanResult && !scanning && (
+              <div className="absolute top-2 right-2 z-10">
+                <Badge className="bg-amber-500 text-white text-[10px] px-2 py-0.5">
+                  <WifiOff className="w-3 h-3 mr-1" />
+                  HORS-LIGNE
+                </Badge>
+              </div>
+            )}
+
             {/* Corner markers */}
             <div className="absolute inset-4">
               <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-md" />
@@ -228,7 +489,7 @@ export default function QrScannerView() {
 
             {/* Scan line animation */}
             {!scanResult && !scanning && (
-              <div className="absolute inset-x-0 top-0 h-0.5 bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-bounce" />
+              <div className={`absolute inset-x-0 top-0 h-0.5 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-bounce ${isOnline ? 'bg-green-400' : 'bg-amber-400'}`} />
             )}
 
             {scanning && (
@@ -247,6 +508,12 @@ export default function QrScannerView() {
                 )}
                 {scanResult.error && (
                   <p className="text-sm text-muted-foreground text-center">{scanResult.error}</p>
+                )}
+                {scanResult.offline && (
+                  <Badge variant="outline" className="text-xs bg-white/50 border-amber-300 text-amber-700">
+                    <WifiOff className="w-3 h-3 mr-1" />
+                    Vérification hors-ligne
+                  </Badge>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">Réinitialisation automatique...</p>
               </div>

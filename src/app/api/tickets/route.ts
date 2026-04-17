@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
-import { generateFullQR, generateQRToken, QRPayload } from '@/lib/qr';
+import { generateQRToken, QRPayload } from '@/lib/qr';
 import { Prisma } from '@prisma/client';
 
 // GET /api/tickets - List tickets with filters
@@ -259,30 +259,31 @@ export const POST = withAuth(async (req, user) => {
       },
     });
 
-    // Generate QR payload and signature
+    // Generate QR payload with short keys (JWT)
     const qrPayload: QRPayload = {
-      ticketId: ticket.id,
+      tid: ticket.id,
+      typ: ticket.type as 'UNIT' | 'SUBSCRIPTION',
+      zf: fromZoneId || undefined,
+      zt: toZoneId || undefined,
+      exp: Math.floor(validTo.getTime() / 1000),
+      iat: Math.floor(Date.now() / 1000),
+      // Human-readable fields for display
       ticketNumber: ticket.ticketNumber,
-      type: ticket.type as 'UNIT' | 'SUBSCRIPTION',
-      fromZone: fromZoneName,
-      toZone: toZoneName,
+      passengerName: passengerName || undefined,
       fromStop: fromStopName,
       toStop: toStopName,
-      passengerName: passengerName || undefined,
-      validFrom: validFrom.toISOString(),
-      validTo: validTo.toISOString(),
-      issuedAt: new Date().toISOString(),
+      fromZone: fromZoneName,
+      toZone: toZoneName,
     };
 
-    const { token, signature } = generateQRToken(qrPayload);
-    const fullQR = generateFullQR(qrPayload);
+    const jwtString = generateQRToken(qrPayload);
 
-    // Update ticket with QR data
+    // Update ticket with QR data (JWT stored as qrToken, signature field empty)
     await db.ticket.update({
       where: { id: ticket.id },
       data: {
-        qrToken: token,
-        qrSignature: signature,
+        qrToken: jwtString,
+        qrSignature: '',
       },
     });
 
@@ -329,9 +330,9 @@ export const POST = withAuth(async (req, user) => {
       success: true,
       data: {
         ...ticket,
-        qrToken: token,
-        qrSignature: signature,
-        qrString: fullQR,
+        qrToken: jwtString,
+        qrSignature: '',
+        qrString: jwtString,
       },
     }, { status: 201 });
   } catch (error: any) {

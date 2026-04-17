@@ -1,80 +1,61 @@
-import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 const QR_SIGNING_SECRET = process.env.QR_SIGNING_SECRET || 'smartticket-qr-secret';
 
+// JWT payload with short keys matching user's spec
 export interface QRPayload {
-  ticketId: string;
-  ticketNumber: string;
-  type: 'UNIT' | 'SUBSCRIPTION';
-  fromZone?: string;
-  toZone?: string;
+  tid: string;              // ticket ID
+  typ: 'UNIT' | 'SUBSCRIPTION'; // ticket type
+  zf?: string;              // from zone ID
+  zt?: string;              // to zone ID
+  exp: number;              // expiry timestamp (seconds)
+  iat: number;              // issued-at timestamp (seconds)
+  // Human-readable fields for display
+  ticketNumber?: string;
+  passengerName?: string;
   fromStop?: string;
   toStop?: string;
-  passengerName?: string;
-  validFrom: string;
-  validTo: string;
-  issuedAt: string;
+  fromZone?: string;
+  toZone?: string;
 }
 
-export function generateQRToken(payload: QRPayload): { token: string; signature: string } {
-  const token = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = crypto
-    .createHmac('sha256', QR_SIGNING_SECRET)
-    .update(token)
-    .digest('base64url');
-
-  return { token, signature };
+/**
+ * Sign a QR payload using JWT HS256.
+ * Returns the JWT string (not base64url JSON like the old approach).
+ */
+export function generateQRToken(payload: QRPayload): string {
+  return jwt.sign(payload, QR_SIGNING_SECRET, { algorithm: 'HS256' });
 }
 
-export function verifyQRSignature(token: string, signature: string): boolean {
-  const expectedSignature = crypto
-    .createHmac('sha256', QR_SIGNING_SECRET)
-    .update(token)
-    .digest('base64url');
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature, 'base64url'),
-    Buffer.from(expectedSignature, 'base64url')
-  );
-}
-
-export function decodeQRToken(token: string): QRPayload | null {
-  try {
-    const json = Buffer.from(token, 'base64url').toString('utf-8');
-    return JSON.parse(json) as QRPayload;
-  } catch {
-    return null;
-  }
-}
-
-export function generateFullQR(payload: QRPayload): string {
-  const { token, signature } = generateQRToken(payload);
-  return `${token}.${signature}`;
-}
-
-export function parseAndVerifyQR(qrString: string): {
+/**
+ * Verify and decode a JWT QR token.
+ * Checks signature, expiry, and returns the decoded payload.
+ */
+export function parseAndVerifyQR(token: string): {
   valid: boolean;
   payload: QRPayload | null;
   error?: string;
 } {
   try {
-    const [token, signature] = qrString.split('.');
+    const decoded = jwt.verify(token, QR_SIGNING_SECRET, { algorithms: ['HS256'] }) as QRPayload;
 
-    if (!token || !signature) {
-      return { valid: false, payload: null, error: 'Format QR invalide' };
+    // Double-check expiry (jwt.verify already checks this, but be explicit)
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && now > decoded.exp) {
+      return { valid: false, payload: null, error: 'QR expiré' };
     }
 
-    if (!verifyQRSignature(token, signature)) {
+    return { valid: true, payload: decoded };
+  } catch (err: any) {
+    if (err.name === 'TokenExpiredError') {
+      return { valid: false, payload: null, error: 'QR expiré' };
+    }
+    if (err.name === 'JsonWebTokenError') {
       return { valid: false, payload: null, error: 'Signature QR falsifiée' };
     }
-
-    const payload = decodeQRToken(token);
-    if (!payload) {
-      return { valid: false, payload: null, error: 'Données QR corrompues' };
+    if (err.name === 'NotBeforeError') {
+      return { valid: false, payload: null, error: 'QR non encore valide' };
     }
-
-    return { valid: true, payload };
-  } catch {
     return { valid: false, payload: null, error: 'Erreur de lecture QR' };
   }
 }

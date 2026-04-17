@@ -86,6 +86,7 @@ model Fare {
   fromZoneId  String
   toZoneId    String
   price       Float   // Price in local currency
+  ticketType  String  @default("single") @map("ticket_type")
   isActive    Boolean @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -222,6 +223,9 @@ model Ticket {
   cashSessionId  String?
   soldAt         DateTime  @default(now())
   
+  // Passenger photo (URL, separate from base64 in Subscription)
+  passengerPhotoUrl String?  @map("passenger_photo_url")
+
   // Payment
   amountPaid     Float
   changeGiven    Float    @default(0)
@@ -292,7 +296,8 @@ model Control {
   longitude   Float?
   
   // Offline sync batch
-  batchId     String?       // Group offline controls for sync
+  syncedFromOffline Boolean  @default(false) @map("synced_from_offline")
+  batchId            String? @map("batch_id") // Group offline controls for sync
 
   ticket     Ticket? @relation(fields: [ticketId], references: [id])
   controller User    @relation("ControllerControls", fields: [controllerId], references: [id])

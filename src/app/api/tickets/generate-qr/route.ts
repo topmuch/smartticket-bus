@@ -35,15 +35,15 @@ export const POST = withAuth(async (req) => {
       );
     }
 
-    if (!ticket.qrToken || !ticket.qrSignature) {
+    if (!ticket.qrToken) {
       return NextResponse.json(
         { success: false, error: 'Token QR non disponible pour ce ticket' },
         { status: 400 }
       );
     }
 
-    // Build full QR string: token.signature
-    const qrString = `${ticket.qrToken}.${ticket.qrSignature}`;
+    // The QR string is the JWT stored in qrToken
+    const qrString = ticket.qrToken;
 
     // Generate QR code image
     const qrImage = await QRCode.toDataURL(qrString, {
