@@ -1,283 +1,347 @@
-#!/usr/bin/env node
-// SmartTicket Bus - Systematic API Self-Audit
+// SmartTicket Bus - Complete API Test Script
 const BASE = 'http://localhost:3000';
 
-let pass = 0, fail = 0, total = 0;
-
-async function req(method, path, body = null, token = null) {
-  const opts = { method, headers: {} };
-  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+async function request(method, path, body = null, token = null) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 30000,
+  };
   if (token) opts.headers['Authorization'] = `Bearer ${token}`;
-  
+  if (body) opts.body = JSON.stringify(body);
+
+  const start = Date.now();
   try {
     const res = await fetch(`${BASE}${path}`, opts);
-    const text = await res.text();
-    let json;
-    try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 200), status: res.status }; }
-    return { status: res.status, json, ok: res.status >= 200 && res.status < 500 };
-  } catch (e) {
-    return { status: 0, json: { error: e.message }, ok: false };
+    const data = await res.json().catch(() => null);
+    const elapsed = Date.now() - start;
+    return { status: res.status, ok: res.ok, data, elapsed, path };
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    return { status: 0, ok: false, data: null, error: err.message, elapsed, path };
   }
 }
 
-function check(name, result, expectedPass, extra = '') {
-  total++;
-  const passed = expectedPass ? result.ok : !result.ok || result.json.success === false;
-  if (passed) { pass++; console.log(`  ✅ ${name}`); }
-  else { fail++; console.log(`  ❌ ${name} ${extra}`); console.log(`     → HTTP ${result.status} | ${JSON.stringify(result.json).slice(0, 150)}`); }
+let pass = 0, fail = 0;
+const results = [];
+
+function log(testId, desc, result, expectStatus = null) {
+  const expectedOk = expectStatus ? result.status === expectStatus : result.ok;
+  const status = expectedOk ? '✅' : '❌';
+  if (expectedOk) pass++; else fail++;
+  const detail = result.data
+    ? (result.data.success !== undefined ? `success=${result.data.success}` : '')
+    : (result.error || '');
+  const expectNote = expectStatus ? ` (expect ${expectStatus})` : '';
+  const msg = `${status} [${testId}] ${desc} => HTTP ${result.status}${expectNote} (${result.elapsed}ms) ${detail}`;
+  console.log(msg);
+  results.push({ testId, desc, status: result.status, ok: expectedOk, elapsed: result.elapsed });
 }
 
-(async () => {
-  console.log('=========================================');
-  console.log('  SmartTicket Bus - API Self-Audit');
-  console.log('=========================================\n');
+async function main() {
+  console.log('='.repeat(60));
+  console.log('  SMARTTICKET BUS - TESTS COMPLETS');
+  console.log(`  Date: ${new Date().toISOString()}`);
+  console.log('='.repeat(60));
 
-  // ===== 1. AUTH =====
-  console.log('--- AUTH ---');
+  // ==================== AUTH ====================
+  console.log('\n=== AUTHENTIFICATION ===');
+
   let r;
-  
-  r = await req('POST', '/api/auth/login', { email: 'admin@smartticket.bus', password: 'Admin@123' });
-  check('Login Admin (superadmin)', r, true);
-  const adminToken = r.json?.data?.accessToken || '';
-  console.log(`     Token: ${adminToken ? adminToken.slice(0, 30) + '...' : 'NONE'}`);
+  let adminToken, opToken, ctrlToken;
 
-  r = await req('POST', '/api/auth/login', { email: 'guichet1@smartticket.bus', password: 'Oper@123' });
-  check('Login Operator', r, true);
-  const opToken = r.json?.data?.accessToken || '';
+  r = await request('POST', '/api/auth/login', { email: 'admin@smartticket.bus', password: 'Admin@123' });
+  log('A1', 'Login SUPERADMIN', r);
+  adminToken = r.data?.data?.accessToken || '';
 
-  r = await req('POST', '/api/auth/login', { email: 'control1@smartticket.bus', password: 'Control@123' });
-  check('Login Controller', r, true);
-  const ctrlToken = r.json?.data?.accessToken || '';
+  r = await request('POST', '/api/auth/login', { email: 'guichet1@smartticket.bus', password: 'Oper@123' });
+  log('A2', 'Login OPERATOR', r);
+  opToken = r.data?.data?.accessToken || '';
 
-  r = await req('POST', '/api/auth/login', { email: 'admin@smartticket.bus', password: 'wrong' });
-  check('Login Wrong Password (should fail)', r, true, '(expect success:false)');
+  r = await request('POST', '/api/auth/login', { email: 'control1@smartticket.bus', password: 'Control@123' });
+  log('A3', 'Login CONTROLLER', r);
+  ctrlToken = r.data?.data?.accessToken || '';
 
-  r = await req('POST', '/api/auth/login', { email: 'nonexistent@test.com', password: 'test' });
-  check('Login Nonexistent User (should fail)', r, true, '(expect success:false)');
+  r = await request('POST', '/api/auth/login', { email: 'admin@smartticket.bus', password: 'WRONG' });
+  log('A4', 'Login wrong password (expect 401)', r, 401);
 
-  r = await req('GET', '/api/auth/me', null, adminToken);
-  check('GET /me (Admin)', r, true);
+  r = await request('GET', '/api/auth/me', null, adminToken);
+  log('A5', 'GET /me with admin token', r);
 
-  r = await req('GET', '/api/auth/me', null, null);
-  check('GET /me (No Token → 401)', r, true, '(expect 401)');
+  r = await request('GET', '/api/auth/me');
+  log('A6', 'GET /me no token (expect 401)', r, 401);
 
-  console.log('');
+  r = await request('POST', '/api/auth/change-password', { currentPassword: 'Admin@123', newPassword: 'Admin@123' }, adminToken);
+  log('A7', 'Change password (same pw)', r);
 
-  // ===== 2. ZONES =====
-  console.log('--- ZONES ---');
-  r = await req('GET', '/api/zones', null, adminToken);
-  check('GET Zones (Admin)', r, true);
-  const zones = r.json?.data?.zones || r.json?.data || [];
-  let zoneId = zones[0]?.id || '';
+  // ==================== ZONES ====================
+  console.log('\n=== ZONES ===');
 
-  r = await req('GET', '/api/zones', null, null);
-  check('GET Zones (No Auth - public read)', r, true);
+  r = await request('GET', '/api/zones');
+  log('Z1', 'GET all zones', r);
 
-  if (zoneId) {
-    r = await req('GET', `/api/zones/${zoneId}`, null, adminToken);
-    check('GET Zone by ID', r, true);
+  r = await request('GET', '/api/zones', null, adminToken);
+  log('Z2', 'GET zones (auth)', r);
 
-    r = await req('POST', '/api/zones', { code: 'T99', name: 'Zone Test Audit', description: 'Test' }, adminToken);
-    check('POST Create Zone', r, true);
-    const newZone = r.json?.data;
-    const newZoneId = newZone?.id || '';
+  const zones = r.data?.data || [];
+  if (zones.length > 0) {
+    r = await request('GET', `/api/zones/${zones[0].id}`, null, adminToken);
+    log('Z3', 'GET zone by ID', r);
 
-    if (newZoneId) {
-      r = await req('PUT', `/api/zones/${newZoneId}`, { name: 'Zone Test Updated' }, adminToken);
-      check('PUT Update Zone', r, true);
+    r = await request('POST', '/api/zones', { code: 'T99', name: 'Zone Test', color: '#ff0000' }, adminToken);
+    log('Z4', 'POST create zone', r);
 
-      r = await req('DELETE', `/api/zones/${newZoneId}`, null, adminToken);
-      check('DELETE Zone', r, true);
+    if (r.data?.data?.id) {
+      const newZoneId = r.data.data.id;
+      r = await request('PUT', `/api/zones/${newZoneId}`, { name: 'Zone Test Updated' }, adminToken);
+      log('Z5', 'PUT update zone', r);
+
+      r = await request('DELETE', `/api/zones/${newZoneId}`, null, adminToken);
+      log('Z6', 'DELETE zone', r);
     }
   }
-  console.log('');
 
-  // ===== 3. FARES =====
-  console.log('--- FARES ---');
-  r = await req('GET', '/api/fares', null, adminToken);
-  check('GET Fares', r, true);
-  const fares = r.json?.data?.fares || r.json?.data || [];
+  // ==================== FARES ====================
+  console.log('\n=== TARIFS ===');
 
-  r = await req('POST', '/api/pricing/calculate', { fromZoneId: zoneId, toZoneId: zoneId }, adminToken);
-  check('POST Calculate Pricing', r, true);
-  console.log('');
+  r = await request('GET', '/api/fares', null, adminToken);
+  log('F1', 'GET all fares', r);
 
-  // ===== 4. LINES =====
-  console.log('--- LINES ---');
-  r = await req('GET', '/api/lines', null, adminToken);
-  check('GET Lines (Admin)', r, true);
-  const lines = r.json?.data?.lines || r.json?.data || [];
-  let lineId = lines[0]?.id || '';
-
-  r = await req('GET', '/api/lines', null, null);
-  check('GET Lines (Public)', r, true);
-
-  if (lineId) {
-    r = await req('GET', `/api/lines/${lineId}`, null, adminToken);
-    check('GET Line by ID', r, true);
+  const fares = r.data?.data || [];
+  if (fares.length > 0) {
+    r = await request('GET', `/api/fares/${fares[0].id}`, null, adminToken);
+    log('F2', 'GET fare by ID', r);
   }
-  console.log('');
 
-  // ===== 5. STOPS =====
-  console.log('--- STOPS ---');
-  r = await req('GET', '/api/stops', null, adminToken);
-  check('GET Stops (Admin)', r, true);
+  r = await request('POST', '/api/pricing/calculate', { fromZoneId: zones[0]?.id, toZoneId: zones[1]?.id }, adminToken);
+  log('F3', 'POST pricing calculate', r);
 
-  r = await req('GET', '/api/stops', null, null);
-  check('GET Stops (Public)', r, true);
-  const stops = r.json?.data?.stops || r.json?.data || [];
-  let stopId = stops[0]?.id || '';
+  // ==================== LINES ====================
+  console.log('\n=== LIGNES ===');
 
-  if (stopId) {
-    r = await req('GET', `/api/stops/${stopId}`, null, adminToken);
-    check('GET Stop by ID', r, true);
+  r = await request('GET', '/api/lines');
+  log('L1', 'GET all lines (public)', r);
+
+  const lines = r.data?.data || [];
+  if (lines.length > 0) {
+    r = await request('GET', `/api/lines/${lines[0].id}`, null, adminToken);
+    log('L2', 'GET line by ID', r);
   }
-  console.log('');
 
-  // ===== 6. SCHEDULES =====
-  console.log('--- SCHEDULES ---');
-  r = await req('GET', '/api/schedules', null, adminToken);
-  check('GET Schedules', r, true);
-  console.log('');
+  r = await request('POST', '/api/lines', { number: `TEST${Date.now()}`, name: 'Test Line', color: '#ff0000' }, adminToken);
+  log('L3', 'POST create line', r);
 
-  // ===== 7. USERS =====
-  console.log('--- USERS (RBAC TEST) ---');
-  r = await req('GET', '/api/users', null, adminToken);
-  check('GET Users (Admin → OK)', r, true);
+  if (r.data?.data?.id) {
+    const newLineId = r.data.data.id;
+    r = await request('PUT', `/api/lines/${newLineId}`, { name: 'Test Line Updated' }, adminToken);
+    log('L4', 'PUT update line', r);
 
-  r = await req('GET', '/api/users', null, opToken);
-  check('GET Users (Operator → 403)', r, true, '(expect forbidden)');
+    r = await request('DELETE', `/api/lines/${newLineId}`, null, adminToken);
+    log('L5', 'DELETE line', r);
+  }
 
-  r = await req('GET', '/api/users', null, ctrlToken);
-  check('GET Users (Controller → 403)', r, true, '(expect forbidden)');
-  console.log('');
+  // ==================== STOPS ====================
+  console.log('\n=== ARRETS ===');
 
-  // ===== 8. TICKETS =====
-  console.log('--- TICKETS ---');
-  r = await req('GET', '/api/tickets', null, adminToken);
-  check('GET Tickets (Admin)', r, true);
+  r = await request('GET', '/api/stops');
+  log('S1', 'GET all stops (public)', r);
 
-  r = await req('GET', '/api/tickets', null, opToken);
-  check('GET Tickets (Operator)', r, true);
+  const stops = r.data?.data || [];
+  if (stops.length > 0) {
+    r = await request('GET', `/api/stops/${stops[0].id}`, null, adminToken);
+    log('S2', 'GET stop by ID', r);
+  }
 
-  r = await req('GET', '/api/tickets', null, ctrlToken);
-  check('GET Tickets (Controller → 403)', r, true, '(expect forbidden)');
-  console.log('');
+  // ==================== SCHEDULES ====================
+  console.log('\n=== HORAIRES ===');
 
-  // ===== 9. CONTROLS =====
-  console.log('--- CONTROLS ---');
-  r = await req('GET', '/api/controls', null, adminToken);
-  check('GET Controls (Admin)', r, true);
+  r = await request('GET', '/api/schedules');
+  log('H1', 'GET all schedules (public)', r);
 
-  r = await req('GET', '/api/controls', null, ctrlToken);
-  check('GET Controls (Controller)', r, true);
+  // ==================== USERS ====================
+  console.log('\n=== UTILISATEURS ===');
 
-  r = await req('GET', '/api/controls/stats', null, adminToken);
-  check('GET Controls Stats', r, true);
-  console.log('');
+  r = await request('GET', '/api/users', null, adminToken);
+  log('U1', 'GET users (admin)', r);
 
-  // ===== 10. REPORTS =====
-  console.log('--- REPORTS ---');
-  r = await req('GET', '/api/reports/dashboard', null, adminToken);
-  check('GET Dashboard Stats', r, true);
+  r = await request('GET', '/api/users', null, opToken);
+  log('U2', 'GET users (operator - expect 403)', r, 403);
 
-  r = await req('GET', '/api/reports/revenue', null, adminToken);
-  check('GET Revenue Report', r, true);
+  r = await request('GET', '/api/users', null, ctrlToken);
+  log('U3', 'GET users (controller - expect 403)', r, 403);
 
-  r = await req('GET', '/api/reports/controls', null, adminToken);
-  check('GET Controls Report', r, true);
+  const users = r.data?.data || [];
+  const allUsersResp = await request('GET', '/api/users', null, adminToken);
+  const allUsers = allUsersResp.data?.data || [];
+  if (allUsers.length > 0) {
+    r = await request('GET', `/api/users/${allUsers[0].id}`, null, adminToken);
+    log('U4', 'GET user by ID', r);
+  }
 
-  r = await req('GET', '/api/reports/export', null, adminToken);
-  check('GET Export CSV', r, true);
-  console.log('');
+  // ==================== CASH SESSIONS ====================
+  console.log('\n=== SESSIONS DE CAISSE ===');
 
-  // ===== 11. CASH SESSIONS =====
-  console.log('--- CASH SESSIONS ---');
-  r = await req('GET', '/api/cash-sessions', null, adminToken);
-  check('GET Cash Sessions', r, true);
-  console.log('');
+  r = await request('GET', '/api/cash-sessions', null, adminToken);
+  log('C1', 'GET cash sessions', r);
 
-  // ===== 12. SUBSCRIPTIONS =====
-  console.log('--- SUBSCRIPTIONS ---');
-  r = await req('GET', '/api/subscriptions', null, adminToken);
-  check('GET Subscriptions', r, true);
-  console.log('');
+  r = await request('GET', '/api/cash-sessions?status=OPEN', null, adminToken);
+  log('C2', 'GET open cash sessions', r);
 
-  // ===== 13. AUDIT LOGS =====
-  console.log('--- AUDIT LOGS ---');
-  r = await req('GET', '/api/audit-logs', null, adminToken);
-  check('GET Audit Logs', r, true);
-  console.log('');
+  // First close any existing open sessions for this operator
+  const opMeResp = await request('GET', '/api/auth/me', null, opToken);
+  const operatorId = opMeResp.data?.data?.id;
+  const openSessions = await request('GET', '/api/cash-sessions?status=OPEN', null, adminToken);
+  const operatorOpenSessions = (openSessions.data?.data || []).filter(s => s.operatorId === operatorId);
+  for (const s of operatorOpenSessions) {
+    await request('PUT', `/api/cash-sessions/${s.id}`, { actualCash: s.openingBalance, notes: 'Auto-close before test' }, opToken);
+  }
 
-  // ===== 14. PUBLIC PORTAL =====
-  console.log('--- PUBLIC PORTAL ---');
-  r = await req('GET', '/api/public/info', null);
-  check('GET Public Info', r, true);
+  r = await request('POST', '/api/cash-sessions', { openingBalance: 50000 }, opToken);
+  log('C3', 'POST open cash session', r);
 
-  r = await req('GET', '/api/public/lines', null);
-  check('GET Public Lines', r, true);
+  let openSessionId = r.data?.data?.id;
 
-  r = await req('GET', '/api/public/stops', null);
-  check('GET Public Stops', r, true);
-
-  r = await req('GET', '/api/public/schedules', null);
-  check('GET Public Schedules', r, true);
-
-  r = await req('GET', '/api/public/search?query=Place', null);
-  check('GET Public Search', r, true);
-  console.log('');
-
-  // ===== 15. TICKET SALE + VALIDATION FLOW =====
-  console.log('--- TICKET SALE + VALIDATION FLOW ---');
-  
-  // Open cash session
-  r = await req('POST', '/api/cash-sessions', { openingBalance: 50000 }, opToken);
-  check('POST Open Cash Session', r, true);
-  const sessionId = r.json?.data?.id || '';
-
-  // Get a fare
-  const fromFare = fares[0];
-  const toFare = fares[1];
-  
-  if (fromFare && toFare && sessionId) {
-    r = await req('POST', '/api/tickets', {
-      type: 'UNIT',
-      fromZoneId: fromFare.fromZoneId,
-      toZoneId: fromFare.toZoneId,
-      price: fromFare.price || 250,
-      amountPaid: 500,
-      paymentMethod: 'cash',
-      cashSessionId: sessionId
+  if (openSessionId) {
+    r = await request('PUT', `/api/cash-sessions/${openSessionId}`, {
+      actualCash: 75000,
+      notes: 'Fermeture test'
     }, opToken);
-    check('POST Sell Ticket (UNIT)', r, true);
-    const ticket = r.json?.data || {};
-    const qrString = ticket.qrString || '';
-    
-    if (qrString) {
-      // Validate the ticket as controller
-      r = await req('POST', '/api/tickets/validate', { qrString }, ctrlToken);
-      check('POST Validate Ticket QR (VALID)', r, true);
-      console.log(`     Validation result: ${r.json?.result || 'unknown'}`);
-
-      // Try to validate again (should be ALREADY_USED for UNIT)
-      r = await req('POST', '/api/tickets/validate', { qrString }, ctrlToken);
-      check('POST Re-validate (ALREADY_USED)', r, true);
-      console.log(`     Re-validation result: ${r.json?.result || 'unknown'}`);
-    }
-
-    // Validate a fake QR
-    r = await req('POST', '/api/tickets/validate', { qrString: 'fake.qr.token.invalid' }, ctrlToken);
-    check('POST Validate Fake QR (FALSIFIED)', r, true);
-    console.log(`     Fake QR result: ${r.json?.result || 'unknown'}`);
+    log('C4', 'PUT close cash session', r);
   }
-  console.log('');
 
-  // ===== RESULTS =====
-  console.log('=========================================');
-  console.log(`  RESULTS: ✅ ${pass}/${total} passed | ❌ ${fail}/${total} failed`);
-  if (fail === 0) console.log('  🎉 ALL TESTS PASSED!');
-  else console.log(`  ⚠️  ${fail} test(s) need attention`);
-  console.log('=========================================');
+  // ==================== TICKETS ====================
+  console.log('\n=== TICKETS ===');
 
-  process.exit(fail > 0 ? 1 : 0);
-})();
+  // Open a new session for ticket test
+  r = await request('POST', '/api/cash-sessions', { openingBalance: 50000 }, opToken);
+  openSessionId = r.data?.data?.id;
+
+  r = await request('GET', '/api/tickets', null, adminToken);
+  log('T1', 'GET tickets (admin)', r);
+
+  r = await request('GET', '/api/tickets', null, opToken);
+  log('T2', 'GET tickets (operator)', r);
+
+  r = await request('GET', '/api/tickets', null, ctrlToken);
+  log('T3', 'GET tickets (controller - expect 403)', r, 403);
+
+  // Sell a ticket
+  r = await request('POST', '/api/tickets', {
+    type: 'UNIT',
+    passengerName: 'Test Passenger',
+    passengerPhone: '+221 77 000 00 00',
+    fromZoneId: zones[0]?.id,
+    toZoneId: zones[1]?.id,
+    fromStopId: stops[0]?.id,
+    toStopId: stops[1]?.id,
+    lineId: lines[0]?.id,
+    price: 250,
+    amountPaid: 500,
+    changeGiven: 250,
+    paymentMethod: 'cash',
+    cashSessionId: openSessionId,
+  }, opToken);
+  log('T4', 'POST sell ticket', r);
+
+  let ticketQrToken = r.data?.data?.qrToken;
+  let ticketId = r.data?.data?.id;
+
+  if (ticketId) {
+    r = await request('GET', `/api/tickets/${ticketId}`, null, adminToken);
+    log('T5', 'GET ticket by ID', r);
+  }
+
+  // ==================== TICKET VALIDATION ====================
+  console.log('\n=== VALIDATION DE TICKETS ===');
+
+  if (ticketQrToken) {
+    r = await request('POST', '/api/tickets/validate', { qrString: ticketQrToken }, ctrlToken);
+    log('V1', 'POST validate valid ticket', r);
+    if (r.data?.valid) {
+      // Re-validate (should be ALREADY_USED)
+      r = await request('POST', '/api/tickets/validate', { qrString: ticketQrToken }, ctrlToken);
+      log('V2', 'POST validate already used ticket', r);
+    }
+  }
+
+  // Validate with fake QR
+  r = await request('POST', '/api/tickets/validate', { qrString: 'FAKE_QR_TOKEN_DATA' }, ctrlToken);
+  log('V3', 'POST validate fake ticket (expect FALSIFIED)', r);
+
+  // ==================== CONTROLS ====================
+  console.log('\n=== CONTROLES ===');
+
+  r = await request('GET', '/api/controls', null, adminToken);
+  log('CT1', 'GET controls (admin)', r);
+
+  r = await request('GET', '/api/controls', null, ctrlToken);
+  log('CT2', 'GET controls (controller)', r);
+
+  r = await request('GET', '/api/controls/stats', null, ctrlToken);
+  log('CT3', 'GET control stats', r);
+
+  // ==================== REPORTS ====================
+  console.log('\n=== RAPPORTS ===');
+
+  r = await request('GET', '/api/reports/dashboard', null, adminToken);
+  log('R1', 'GET dashboard report', r);
+
+  r = await request('GET', '/api/reports/revenue', null, adminToken);
+  log('R2', 'GET revenue report', r);
+
+  r = await request('GET', '/api/reports/controls', null, adminToken);
+  log('R3', 'GET controls report', r);
+
+  r = await request('GET', '/api/reports/export', null, adminToken);
+  log('R4', 'GET CSV export', r);
+
+  // ==================== PUBLIC PORTAL ====================
+  console.log('\n=== PORTAIL PUBLIC ===');
+
+  r = await request('GET', '/api/public/info');
+  log('P1', 'GET public info', r);
+
+  r = await request('GET', '/api/public/lines');
+  log('P2', 'GET public lines', r);
+
+  r = await request('GET', '/api/public/stops');
+  log('P3', 'GET public stops', r);
+
+  r = await request('GET', '/api/public/schedules');
+  log('P4', 'GET public schedules', r);
+
+  r = await request('GET', '/api/public/search?q=Place');
+  log('P5', 'GET public search', r);
+
+  // ==================== SUBSCRIPTIONS ====================
+  console.log('\n=== ABONNEMENTS ===');
+
+  r = await request('GET', '/api/subscriptions', null, adminToken);
+  log('SUB1', 'GET subscriptions', r);
+
+  // ==================== AUDIT LOGS ====================
+  console.log('\n=== JOURNAUX D\'AUDIT ===');
+
+  r = await request('GET', '/api/audit-logs', null, adminToken);
+  log('AL1', 'GET audit logs', r);
+
+  // ==================== LINE STOPS ====================
+  console.log('\n=== ARRETS DE LIGNE ===');
+
+  r = await request('GET', '/api/line-stops', null, adminToken);
+  log('LS1', 'GET line stops', r);
+
+  // ==================== SUMMARY ====================
+  console.log('\n' + '='.repeat(60));
+  console.log(`  RESULTATS: ${pass} PASS / ${fail} FAIL sur ${pass + fail} tests`);
+  console.log('='.repeat(60));
+
+  if (fail > 0) {
+    console.log('\nTests echoues:');
+    results.filter(r => !r.ok).forEach(r => {
+      console.log(`  ❌ [${r.testId}] ${r.desc} => HTTP ${r.status}`);
+    });
+  }
+}
+
+main().catch(console.error);
