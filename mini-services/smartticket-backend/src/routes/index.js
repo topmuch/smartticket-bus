@@ -139,6 +139,173 @@ router.get('/schedules', optionalAuth, (req, res) => {
   res.json({ success: true, data: schedules });
 });
 
+// Horaires publics — Format passager (prochains départs avec arrêts)
+// GET /api/v1/public/passages?line_id=l-01&day_of_week=1
+router.get('/public/passages', optionalAuth, (req, res) => {
+  const { db } = require('../config/db');
+  const { line_id, day_of_week } = req.query;
+
+  if (!line_id) {
+    return res.status(400).json({ success: false, error: "ID de ligne requis" });
+  }
+
+  // 1. Déterminer le jour de la semaine (0=Dim, 1=Lun...)
+  const currentDay = day_of_week !== undefined ? parseInt(day_of_week) : new Date().getDay();
+
+  if (isNaN(currentDay) || currentDay < 0 || currentDay > 6) {
+    return res.status(400).json({ success: false, error: "day_of_week doit être entre 0 et 6" });
+  }
+
+  try {
+    // 2. Récupérer les infos de la ligne et ses horaires pour ce jour
+    const scheduleRows = db.prepare(`
+      SELECT 
+        l.id as line_id,
+        l.number as line_number, 
+        l.name as line_name, 
+        l.color as color_hex,
+        s.start_time, 
+        s.end_time,
+        s.frequency
+      FROM lines l
+      JOIN schedules s ON l.id = s.line_id
+      WHERE l.id = ? AND s.day_of_week = ? AND s.is_active = 1 AND l.is_active = 1
+      ORDER BY s.start_time ASC
+    `).all(line_id, currentDay);
+
+    if (scheduleRows.length === 0) {
+      const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+      return res.json({ 
+        success: true,
+        message: `Aucun service prévu pour cette ligne le ${dayNames[currentDay]}.`, 
+        data: {
+          line: null,
+          passages: []
+        }
+      });
+    }
+
+    const lineInfo = {
+      id: scheduleRows[0].line_id,
+      number: scheduleRows[0].line_number,
+      name: scheduleRows[0].line_name,
+      color: scheduleRows[0].color_hex,
+    };
+
+    // 3. Récupérer les arrêts de la ligne (ordonnés)
+    const stopRows = db.prepare(`
+      SELECT DISTINCT 
+        CASE WHEN ls.from_stop_id IS NOT NULL THEN ls.from_stop_id ELSE ls.to_stop_id END as stop_id,
+        s.name as stop_name,
+        s.code as stop_code,
+        z.name as zone_name,
+        z.color as zone_color
+      FROM line_stops ls
+      JOIN stops s ON (
+        CASE WHEN ls.from_stop_id IS NOT NULL THEN ls.from_stop_id ELSE ls.to_stop_id END
+      ) = s.id
+      LEFT JOIN zones z ON s.zone_id = z.id
+      WHERE ls.line_id = ?
+      ORDER BY ls.stop_order ASC
+    `).all(line_id);
+
+    // Fallback: if no stops, try getting first stop from line_stops
+    let stops = stopRows;
+    if (stops.length === 0) {
+      stops = db.prepare(`
+        SELECT 
+          ls.from_stop_id as stop_id,
+          s.name as stop_name,
+          s.code as stop_code,
+          z.name as zone_name,
+          z.color as zone_color
+        FROM line_stops ls
+        JOIN stops s ON ls.from_stop_id = s.id
+        LEFT JOIN zones z ON s.zone_id = z.id
+        WHERE ls.line_id = ?
+        ORDER BY ls.stop_order ASC
+      `).all(line_id);
+    }
+
+    // 4. Calculer les prochains départs à partir de la fréquence
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const passages = [];
+    const maxPassages = 20; // Limiter le nombre de passages
+
+    for (const sched of scheduleRows) {
+      const [startH, startM] = sched.start_time.split(':').map(Number);
+      const [endH, endM] = sched.end_time.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+      const freq = sched.frequency || 15;
+
+      // Generate next departure times
+      let time = Math.max(startMinutes, nowMinutes);
+      // Round up to next frequency boundary
+      if (time > startMinutes && (time - startMinutes) % freq !== 0) {
+        time = time + (freq - ((time - startMinutes) % freq));
+      }
+
+      let count = 0;
+      while (time <= endMinutes && count < maxPassages) {
+        const h = Math.floor(time / 60);
+        const m = time % 60;
+        const departureTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+        passages.push({
+          departure_time: departureTime,
+          start_time: sched.start_time,
+          end_time: sched.end_time,
+          frequency: freq,
+          stops: stops.map(s => ({
+            stop_id: s.stop_id,
+            stop_name: s.stop_name,
+            stop_code: s.stop_code,
+            zone_name: s.zone_name || '',
+            zone_color: s.zone_color || '#6b7280',
+          })),
+        });
+
+        time += freq;
+        count++;
+      }
+    }
+
+    // 5. Trier par heure de départ
+    passages.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+    // 6. Si tous les bus sont passés, afficher un message
+    const isServiceEnded = passages.length === 0 && scheduleRows.length > 0;
+    const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+    res.json({
+      success: true,
+      data: {
+        line: lineInfo,
+        day_of_week: currentDay,
+        day_name: dayNames[currentDay],
+        current_time: currentTimeStr,
+        is_service_ended: isServiceEnded,
+        passages: passages,
+        stops: stops.map(s => ({
+          stop_id: s.stop_id,
+          stop_name: s.stop_name,
+          stop_code: s.stop_code,
+          zone_name: s.zone_name || '',
+          zone_color: s.zone_color || '#6b7280',
+        })),
+      },
+    });
+
+  } catch (error) {
+    console.error('Public passages error:', error);
+    res.status(500).json({ success: false, error: "Erreur serveur" });
+  }
+});
+
 // Tarifs publics (lecture seule)
 router.get('/public/fares', optionalAuth, adminCtrl.getTariffs);
 

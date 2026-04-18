@@ -955,3 +955,47 @@ Stage Summary:
 - Rate limiting: 4 tiers (global 200/15min, login 5/15min, scan 30/min, sell 20/min)
 - Production: env validation, graceful shutdown, ZodError handling
 - Deploy: `chmod +x deploy.sh && ./deploy.sh`
+
+---
+Task ID: PUBLIC-SCHEDULES-V2
+Agent: Main Orchestrator
+Task: Implement public schedules page — real-time clock, line selector, next departures with stops
+
+Work Log:
+- Created new Express backend route GET /api/v1/public/passages?line_id=X&day_of_week=Y
+  - Takes line_id (required) and day_of_week (optional, defaults to today)
+  - Joins schedules + lines + line_stops + stops + zones
+  - Computes next departure times from frequency (startTime + frequency increments)
+  - Filters to show only future departures (departure_time >= current time)
+  - Returns: line info, day name, current time, isServiceEnded flag, passages array, stops array
+  - Each passage includes: departureTime, frequency, stops list with zone colors
+  - Max 20 passages per response to limit payload
+  - Handles edge cases: no service for day, service ended, missing line_id (400)
+- Completely rebuilt SchedulesSection component (src/components/portal/schedules-section.tsx):
+  - LiveClock: real-time clock updating every second (toLocaleTimeString fr-FR)
+  - Line selector with colored dots and search icon
+  - Day selector (today highlighted with primary dot)
+  - Manual refresh button with spinning animation
+  - Auto-refresh every 60 seconds
+  - PassageRow: departure time in large monospace, "X min" countdown badge, expandable stops
+  - StopTag: zone color dot + stop name + code
+  - StopRow: expandable stops per passage with zone colors
+  - Footer: complete route summary with stop codes
+  - States: no line selected, loading (skeletons), no service, service ended, error, passages list
+  - Max-height scrollable passage list (480px)
+- Updated api.ts transformResponse for /public/passages path:
+  - Normalizes snake_case to camelCase
+  - Handles line, passages, stops deeply
+- Tested 5 backend scenarios: L1 Monday, L4 Sunday (no service), L2 Monday, existing /schedules, missing line_id
+- All 5 tests pass
+- ESLint: 0 errors
+- Frontend compiles clean (66KB HTML)
+
+Stage Summary:
+- New endpoint: GET /api/v1/public/passages (public, no auth)
+- Modified: src/components/portal/schedules-section.tsx (complete rewrite)
+- Modified: src/lib/api.ts (added /public/passages transform)
+- Modified: mini-services/smartticket-backend/src/routes/index.js (added route)
+- All text in French
+- Mobile-first responsive design
+- Dark mode compatible

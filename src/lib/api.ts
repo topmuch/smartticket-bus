@@ -379,12 +379,44 @@ function transformResponse(path: string, data: any): any {
   }
 
   // Schedules: normalize snake_case fields
-  if (path.includes('/schedules') && (Array.isArray(data.data) || (data.data && !data.data.ticket))) {
+  if (path.includes('/schedules') && !path.includes('/passages') && (Array.isArray(data.data) || (data.data && !data.data.ticket))) {
     if (Array.isArray(data.data)) {
       data.data = data.data.map(normalizeKeys);
     } else if (data.data && typeof data.data === 'object' && !data.data.ticket) {
       data.data = normalizeKeys(data.data);
     }
+  }
+
+  // Public passages: normalize snake_case to camelCase deeply
+  if (path.includes('/public/passages') && data.data) {
+    const d = data.data;
+    data.data = {
+      line: d.line ? normalizeKeys(d.line) : null,
+      dayOfWeek: d.day_of_week,
+      dayName: d.day_name,
+      currentTime: d.current_time,
+      isServiceEnded: d.is_service_ended === true,
+      passages: (d.passages || []).map((p: any) => ({
+        departureTime: p.departure_time,
+        startTime: p.start_time,
+        endTime: p.end_time,
+        frequency: p.frequency,
+        stops: (p.stops || []).map((s: any) => ({
+          stopId: s.stop_id,
+          stopName: s.stop_name,
+          stopCode: s.stop_code,
+          zoneName: s.zone_name || '',
+          zoneColor: s.zone_color || '#6b7280',
+        })),
+      })),
+      stops: (d.stops || []).map((s: any) => ({
+        stopId: s.stop_id,
+        stopName: s.stop_name,
+        stopCode: s.stop_code,
+        zoneName: s.zone_name || '',
+        zoneColor: s.zone_color || '#6b7280',
+      })),
+    };
   }
 
   // Pricing/calculate: normalize response
