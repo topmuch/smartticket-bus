@@ -838,3 +838,38 @@ Stage Summary:
 - Ticket receipt printable via browser print dialog
 - All existing functionality preserved
 - All text in French
+
+---
+Task ID: LIVE-RETEST
+Agent: Main Orchestrator
+Task: Re-test complet en direct (user asked: "est que cest tester")
+
+Work Log:
+- Restarted backend server (Express.js on port 3001)
+- Created new Node.js test script (run-tests.cjs) using native http module for reliability
+- Fixed URL path concatenation bug in test script (new URL() was stripping /api/v1 prefix)
+- Ran 48 comprehensive tests in single command to avoid process isolation issues
+- All 48 tests PASS with 100% success rate
+- Verified frontend Next.js compilation: 64KB HTML, HTTP 200
+- ESLint: 0 errors
+
+Test Results (48/48 PASS — 100%):
+  AUTH (8/8): Login Admin ✅, Login Operator ✅, Login Controller ✅, Wrong PW→401 ✅, Bad JWT→403 ✅, No token→401 ✅, Valid JWT→200 ✅
+  PUBLIC (7/7): Info ✅, Fares ✅, Zones ✅, Lines ✅, Stops ✅, Schedules ✅, Pricing (public) ✅
+  ZONES CRUD (5/5): Get ✅, Create 201 ✅, Update ✅, Op forbidden 403 ✅, Delete ✅
+  TARIFFS (2/2): Get ✅, Duplicate 409 ✅
+  TICKETS (7/7): Calc price ✅, Open session 201 ✅, Sell 201 ✅, Op tickets ✅, Admin tickets ✅, Ctrl forbidden 403 ✅, Ticket by ID ✅
+  SCAN (3/3): Valid scan (valid=true) ✅, Already used (reason=already_used) ✅, Fake QR (reason=FALSIFIED) ✅
+  CASH/CONTROLS (5/5): Cash sessions ✅, Controls admin ✅, Controls ctrl ✅, Sync offline ✅, Offline data ✅
+  USERS (5/5): Admin→users 200 ✅, Op→users 403 ✅, Ctrl→users 403 ✅, Create user 201 ✅, Update user ✅
+  REPORTS (4/4): Dashboard 200 ✅, Revenue 200 ✅, Op→dash 403 ✅, Ctrl→dash 403 ✅
+  AUDIT (2/2): Audit logs 200 ✅, Op→audit 403 ✅
+  ERRORS (1/1): 404 route ✅
+
+Stage Summary:
+- 48/48 tests PASS — 100% success rate
+- Full ticket lifecycle verified: Sell → QR → Scan (VALID) → Re-scan (ALREADY_USED) → Fake (FALSIFIED)
+- RBAC verified: SUPERADMIN, OPERATOR, CONTROLLER access control
+- Public portal: 7 endpoints accessible without auth
+- Security: JWT auth, invalid token rejection, unauthorized access blocking
+- Frontend compiles clean (64KB), ESLint 0 errors
