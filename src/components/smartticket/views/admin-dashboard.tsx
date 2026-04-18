@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Wallet,
   Ticket,
   CheckCircle,
   Users,
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
   Loader2,
   BarChart3,
   MapPin,
+  RefreshCw,
+  Calendar,
 } from 'lucide-react';
 import {
   Card,
@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch, formatCurrency } from '@/lib/api';
@@ -38,29 +39,96 @@ interface DashboardData {
   topZones: { id: string; name: string; ticketCount: number }[];
 }
 
+type Period = 'today' | 'week' | 'month' | 'year';
+
+interface PeriodOption {
+  value: Period;
+  label: string;
+  subtitle: string;
+}
+
+const PERIOD_OPTIONS: PeriodOption[] = [
+  { value: 'today', label: "Aujourd'hui", subtitle: "Vue d'ensemble de l'activité du jour" },
+  { value: 'week', label: 'Cette Semaine', subtitle: "Vue d'ensemble de l'activité de la semaine" },
+  { value: 'month', label: 'Ce Mois', subtitle: "Vue d'ensemble de l'activité du mois" },
+  { value: 'year', label: 'Cette Année', subtitle: "Vue d'ensemble de l'activité de l'année" },
+];
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [period, setPeriod] = useState<Period>('today');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Single effect: initial load + auto-refresh every 30s
   useEffect(() => {
-    const fetchDashboard = async () => {
-      setLoading(true);
+    let active = true;
+
+    const loadData = async (showRefresh: boolean) => {
+      if (!active) return;
+      if (showRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
-      const result = await apiFetch<DashboardData>('/api/reports/dashboard?period=today');
+
+      const result = await apiFetch<DashboardData>(
+        `/api/reports/dashboard?period=${period}`,
+      );
+
+      if (!active) return;
+
       if (result.success && result.data) {
         setData(result.data);
+        setLastUpdated(new Date());
       } else {
         setError(result.error || 'Erreur de chargement');
       }
-      setLoading(false);
+
+      if (showRefresh) {
+        setIsRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     };
-    fetchDashboard();
-  }, []);
+
+    loadData(false);
+
+    intervalRef.current = setInterval(() => {
+      loadData(true);
+    }, 30_000);
+
+    return () => {
+      active = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [period]);
+
+  const handlePeriodChange = (newPeriod: Period) => {
+    if (newPeriod === period) return;
+    setPeriod(newPeriod);
+  };
+
+  const currentPeriodMeta = PERIOD_OPTIONS.find((p) => p.value === period)!;
 
   const kpiCards = [
     {
-      title: "Revenus du jour",
+      title: 'Revenus du jour',
       value: data ? formatCurrency(data.totalRevenue) : '—',
       icon: <Wallet className="w-5 h-5" />,
       description: "Chiffre d'affaires aujourd'hui",
@@ -71,7 +139,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
       title: 'Tickets vendus',
       value: data ? data.totalTicketsSold.toString() : '—',
       icon: <Ticket className="w-5 h-5" />,
-      description: "Billets émis aujourd'hui",
+      description: 'Billets émis aujourd\'hui',
       color: 'text-blue-600 dark:text-blue-400',
       bg: 'bg-blue-50 dark:bg-blue-950/40',
     },
@@ -97,10 +165,40 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
     <div className="p-4 lg:p-6 space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tableau de Bord</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Tableau de Bord</h1>
+          {(isRefreshing || loading) && (
+            <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+          )}
+        </div>
         <p className="text-muted-foreground mt-1">
-          Vue d&apos;ensemble de l&apos;activité du jour
+          {currentPeriodMeta.subtitle}
         </p>
+        {lastUpdated && (
+          <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground/70">
+            <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>Dernière mise à jour : {formatTime(lastUpdated)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Period Selector */}
+      <div className="flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+        <div className="flex flex-wrap gap-2">
+          {PERIOD_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              size="sm"
+              variant={period === option.value ? 'default' : 'outline'}
+              onClick={() => handlePeriodChange(option.value)}
+              disabled={loading || isRefreshing}
+              className="text-xs sm:text-sm"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Error State */}
@@ -245,7 +343,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
                       data.validControlRate >= 80
                         ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-400'
                         : data.validControlRate >= 50
-                          ? 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400'
+                          ? 'border-amber-300 text-amber-700 dark:border-amber-400'
                           : 'border-red-300 text-red-700 dark:border-red-700 dark:text-red-400'
                     }`}
                   >

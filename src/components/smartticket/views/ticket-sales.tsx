@@ -41,6 +41,7 @@ import {
   Camera,
   QrCode,
   Bus,
+  Printer,
 } from 'lucide-react';
 
 interface Stop {
@@ -909,9 +910,20 @@ export default function TicketSalesView() {
                 </div>
               </div>
 
-              <Button onClick={resetForm} className="w-full" size="lg">
-                Nouvelle Vente
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => window.print()}
+                  className="flex-1"
+                  size="lg"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimer
+                </Button>
+                <Button onClick={resetForm} className="flex-1" size="lg">
+                  Nouvelle Vente
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

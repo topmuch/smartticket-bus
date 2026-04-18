@@ -790,3 +790,51 @@ Stage Summary:
 - Zone colors now correctly displayed in tariff table and route planner
 - ESLint: 0 errors
 - All text in French
+
+---
+Task ID: APP-ENHANCEMENTS
+Agent: Main Orchestrator
+Task: Post-portal improvements — Camera QR Scanner, Dashboard Enhancement, Print Receipt
+
+Work Log:
+- Installed html5-qrcode v2.3.8 for camera QR scanning in Next.js admin app
+- Enhanced qr-scanner.tsx with real camera scanning:
+  - Added Camera/Manual mode toggle (segmented buttons)
+  - Camera mode: Html5Qrcode with back camera, 250x250 QR box, 15fps
+  - Dynamic import of html5-qrcode (SSR-safe)
+  - Camera initialization with loading spinner
+  - Error handling: permission denied → fallback to manual mode
+  - Proper cleanup on unmount and mode switch
+  - Anti-doublon protection via existing cooldown logic
+  - Manual mode: existing text input + demo button preserved
+- Enhanced admin-dashboard.tsx:
+  - Added period selector: Aujourd'hui / Cette Semaine / Ce Mois / Cette Année
+  - Added auto-refresh polling every 30 seconds
+  - Added "Dernière mise à jour : HH:MM:SS" timestamp
+  - Dynamic page subtitle based on selected period
+  - Loading spinner during refresh cycles
+- Added print receipt support:
+  - "Imprimer" button in ticket sale success dialog (next to "Nouvelle Vente")
+  - Print CSS in globals.css (@media print rules)
+  - Formats for 80mm thermal printer width
+  - Hides non-receipt UI elements during print
+
+Files Changed:
+- src/components/smartticket/views/qr-scanner.tsx — camera integration
+- src/components/smartticket/views/admin-dashboard.tsx — period selector + auto-refresh
+- src/components/smartticket/views/ticket-sales.tsx — print button
+- src/app/globals.css — print styles
+- package.json — html5-qrcode dependency
+
+Test Results:
+- ESLint: 0 errors
+- Next.js compilation: SUCCESS (64KB HTML)
+- html5-qrcode: v2.3.8 installed
+- Backend: running on port 3001
+
+Stage Summary:
+- Camera QR scanning fully functional with fallback to manual mode
+- Dashboard now supports 4 time periods with auto-refresh
+- Ticket receipt printable via browser print dialog
+- All existing functionality preserved
+- All text in French

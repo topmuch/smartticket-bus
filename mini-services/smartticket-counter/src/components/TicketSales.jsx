@@ -21,7 +21,7 @@ import { getZones, getFares, sellTicket } from '../services/api';
 
 const PAYMENT_METHODS = [
   { key: 'cash', label: 'Espèces', icon: Banknote },
-  { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
+  { key: 'mobile', label: 'Mobile Money', icon: Smartphone },
   { key: 'card', label: 'Carte', icon: CreditCard },
 ];
 

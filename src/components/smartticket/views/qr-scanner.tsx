@@ -18,6 +18,7 @@ import {
   CheckCircle,
   XCircle,
   Camera,
+  CameraOff,
   Volume2,
   VolumeX,
   Loader2,
@@ -36,9 +37,11 @@ import {
   Download,
   Upload,
   CloudOff,
+  Keyboard,
 } from 'lucide-react';
 
 type ScanResult = 'VALID' | 'EXPIRED' | 'ALREADY_USED' | 'FALSIFIED' | 'NOT_FOUND' | 'INVALID' | 'BLACKLISTED';
+type ScannerMode = 'camera' | 'manual';
 
 interface ValidationResult {
   success: boolean;
@@ -110,6 +113,8 @@ const RESULT_CONFIG: Record<ScanResult, { icon: React.ReactNode; color: string; 
   },
 };
 
+const SCANNER_ELEMENT_ID = 'smartticket-admin-scanner';
+
 export default function QrScannerView() {
   const [qrInput, setQrInput] = useState('');
   const [scanResult, setScanResult] = useState<ValidationResult | null>(null);
@@ -119,10 +124,16 @@ export default function QrScannerView() {
   const [todayValid, setTodayValid] = useState(0);
   const [todayInvalid, setTodayInvalid] = useState(0);
   const [syncResult, setSyncResult] = useState<{ synced: number; failed: number } | null>(null);
+  const [scannerMode, setScannerMode] = useState<ScannerMode>('camera');
+  const [cameraInitializing, setCameraInitializing] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const autoResetRef = useRef<NodeJS.Timeout | null>(null);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
   const syncResultRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const html5QrRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
+  const isStoppingRef = useRef(false);
 
   const {
     isOnline,
@@ -135,8 +146,11 @@ export default function QrScannerView() {
     fullSync,
   } = useOfflineSync();
 
+  // Keep handleScan in a ref so the camera callback always calls the latest version
+  const handleScanRef = useRef<(qrString: string) => Promise<void>>();
+
   const fetchTodayStats = useCallback(async () => {
-    if (!isOnline) return; // Can't fetch stats offline
+    if (!isOnline) return;
     const user = useAuthStore.getState().user;
     if (!user) return;
 
@@ -153,12 +167,8 @@ export default function QrScannerView() {
   }, [isOnline]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTodayStats();
   }, [fetchTodayStats]);
-
-  // Note: pending controls auto-sync is handled via the Synchroniser button.
-  // We intentionally do not auto-sync on reconnect to avoid unexpected state mutations.
 
   const playBeep = (isValid: boolean) => {
     if (!soundEnabled) return;
@@ -314,6 +324,130 @@ export default function QrScannerView() {
     cooldownRef.current = setTimeout(() => setCooldown(false), 2000);
   };
 
+  // Keep handleScan ref updated
+  handleScanRef.current = handleScan;
+
+  // Camera management
+  const stopCamera = useCallback(async () => {
+    if (html5QrRef.current && !isStoppingRef.current) {
+      isStoppingRef.current = true;
+      try {
+        await html5QrRef.current.stop();
+      } catch {
+        // Ignore stop errors (scanner may already be stopped)
+      }
+      try {
+        html5QrRef.current.clear();
+      } catch {
+        // Ignore clear errors
+      }
+      html5QrRef.current = null;
+      isStoppingRef.current = false;
+    }
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
+    setCameraInitializing(true);
+    setCameraError(null);
+
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+
+      if (!isMountedRef.current) return;
+
+      // Ensure the scanner element exists
+      const scannerEl = document.getElementById(SCANNER_ELEMENT_ID);
+      if (!scannerEl) {
+        if (isMountedRef.current) {
+          setCameraError('Élément de scanner introuvable.');
+          setCameraInitializing(false);
+        }
+        return;
+      }
+
+      // Make sure any previous instance is cleaned up
+      await stopCamera();
+      if (!isMountedRef.current) return;
+
+      const html5QrCode = new Html5Qrcode(SCANNER_ELEMENT_ID);
+      html5QrRef.current = html5QrCode;
+
+      const config = {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      };
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText: string) => {
+          // This callback fires continuously from the camera feed.
+          // Use the ref to call the latest handleScan.
+          if (handleScanRef.current && !scanning && !cooldown) {
+            handleScanRef.current(decodedText);
+          }
+        },
+        () => {
+          // Ignore continuous QR detection failures (no QR in frame)
+        }
+      );
+
+      if (isMountedRef.current) {
+        setCameraInitializing(false);
+        setCameraError(null);
+      }
+    } catch (err: any) {
+      if (!isMountedRef.current) return;
+
+      console.error('Camera error:', err);
+      setCameraInitializing(false);
+      html5QrRef.current = null;
+
+      const errStr = err?.toString() || '';
+      if (errStr.includes('NotAllowedError') || errStr.includes('Permission')) {
+        setCameraError('Caméra non autorisée. Veuillez autoriser l\'accès à la caméra dans les paramètres de votre navigateur.');
+      } else if (errStr.includes('NotFoundError') || errStr.includes('Requested device not found')) {
+        setCameraError('Aucune caméra détectée sur cet appareil.');
+      } else if (errStr.includes('NotReadableError') || errStr.includes('Could not start')) {
+        setCameraError('La caméra est déjà utilisée par une autre application.');
+      } else {
+        setCameraError(`Erreur caméra : ${err?.message || 'Impossible de démarrer la caméra.'}`);
+      }
+
+      // Auto-fallback to manual mode
+      setScannerMode('manual');
+    }
+  }, [scanning, cooldown, stopCamera]);
+
+  // Start/stop camera when scannerMode changes
+  useEffect(() => {
+    if (scannerMode === 'camera') {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+  }, [scannerMode, startCamera, stopCamera]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    inputRef.current?.focus();
+    return () => {
+      isMountedRef.current = false;
+      if (autoResetRef.current) clearTimeout(autoResetRef.current);
+      if (cooldownRef.current) clearTimeout(cooldownRef.current);
+      if (syncResultRef.current) clearTimeout(syncResultRef.current);
+      // Stop camera on unmount
+      if (html5QrRef.current) {
+        html5QrRef.current.stop().catch(() => {});
+        html5QrRef.current = null;
+      }
+    };
+  }, []);
+
   const handleDemoScan = () => {
     const demoStrings = [
       'SMARTTK|TK-20250101-0001|1735689600|1735700400|abc123|demo_sig',
@@ -341,14 +475,8 @@ export default function QrScannerView() {
     : null;
   const config = resultType ? RESULT_CONFIG[resultType] : null;
 
-  useEffect(() => {
-    inputRef.current?.focus();
-    return () => {
-      if (autoResetRef.current) clearTimeout(autoResetRef.current);
-      if (cooldownRef.current) clearTimeout(cooldownRef.current);
-      if (syncResultRef.current) clearTimeout(syncResultRef.current);
-    };
-  }, []);
+  // Show the camera placeholder or the real scanner
+  const showViewfinderPlaceholder = scannerMode === 'manual' || cameraInitializing || !!cameraError;
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -467,6 +595,32 @@ export default function QrScannerView() {
       {/* Scanner Area */}
       <Card className={`border-2 ${scanResult ? (resultType === 'VALID' ? 'border-green-400' : 'border-red-400') : 'border-primary/30'} transition-colors`}>
         <CardContent className="p-4">
+          {/* Scanner Mode Toggle */}
+          <div className="flex rounded-lg overflow-hidden border mb-4 bg-muted/50">
+            <button
+              onClick={() => setScannerMode('camera')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all ${
+                scannerMode === 'camera'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              Caméra
+            </button>
+            <button
+              onClick={() => setScannerMode('manual')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-all border-l ${
+                scannerMode === 'manual'
+                  ? 'bg-primary text-primary-foreground shadow-sm border-l-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted border-l-border'
+              }`}
+            >
+              <Keyboard className="w-4 h-4" />
+              Manuel
+            </button>
+          </div>
+
           {/* Viewfinder */}
           <div className="relative aspect-square max-w-[300px] mx-auto rounded-2xl overflow-hidden bg-gray-950 mb-4">
             {/* Offline overlay indicator in viewfinder */}
@@ -479,28 +633,83 @@ export default function QrScannerView() {
               </div>
             )}
 
-            {/* Corner markers */}
-            <div className="absolute inset-4">
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-md" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr-md" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl-md" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br-md" />
-            </div>
-
-            {/* Scan line animation */}
-            {!scanResult && !scanning && (
-              <div className={`absolute inset-x-0 top-0 h-0.5 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-bounce ${isOnline ? 'bg-green-400' : 'bg-amber-400'}`} />
+            {/* === CAMERA MODE: Real scanner div === */}
+            {scannerMode === 'camera' && !cameraInitializing && !cameraError && (
+              <>
+                {/* The html5-qrcode renders a <video> and <canvas> into this div */}
+                <div id={SCANNER_ELEMENT_ID} className="w-full h-full" />
+                {/* Corner markers on top of camera feed */}
+                <div className="absolute inset-4 pointer-events-none">
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-md" />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr-md" />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl-md" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br-md" />
+                </div>
+                {/* Scan line animation on top of camera */}
+                {!scanResult && !scanning && (
+                  <div className={`absolute inset-x-0 top-0 h-0.5 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-bounce pointer-events-none ${isOnline ? 'bg-green-400' : 'bg-amber-400'}`} />
+                )}
+              </>
             )}
 
+            {/* === CAMERA MODE: Initializing spinner === */}
+            {scannerMode === 'camera' && cameraInitializing && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+                <Loader2 className="w-12 h-12 animate-spin" />
+                <p className="text-sm opacity-70">Démarrage de la caméra...</p>
+              </div>
+            )}
+
+            {/* === CAMERA MODE: Error state === */}
+            {scannerMode === 'camera' && cameraError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400 px-6">
+                <CameraOff className="w-12 h-12 opacity-50" />
+                <p className="text-xs text-center opacity-70">{cameraError}</p>
+                <button
+                  onClick={() => startCamera()}
+                  className="mt-1 text-xs text-white/70 hover:text-white underline underline-offset-2 transition-colors"
+                >
+                  Réessayer
+                </button>
+              </div>
+            )}
+
+            {/* === MANUAL MODE: Placeholder with corners + scan line === */}
+            {showViewfinderPlaceholder && (
+              <>
+                {/* Corner markers */}
+                <div className="absolute inset-4 pointer-events-none">
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-md" />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr-md" />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl-md" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br-md" />
+                </div>
+
+                {/* Scan line animation */}
+                {!scanResult && !scanning && (
+                  <div className={`absolute inset-x-0 top-0 h-0.5 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-bounce pointer-events-none ${isOnline ? 'bg-green-400' : 'bg-amber-400'}`} />
+                )}
+
+                {/* Placeholder icon & text */}
+                {!scanResult && !scanning && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-2">
+                    <Camera className="w-12 h-12 opacity-30" />
+                    <p className="text-xs opacity-50">Scanner un ticket</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Scanning overlay (covers both modes during API validation) */}
             {scanning && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
                 <Loader2 className="w-12 h-12 animate-spin text-white" />
               </div>
             )}
 
-            {/* Result overlay */}
+            {/* Result overlay (covers both modes) */}
             {scanResult && config && (
-              <div className={`absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 ${config.bg}`}>
+              <div className={`absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 z-20 ${config.bg}`}>
                 <div className={config.color}>{config.icon}</div>
                 <p className={`text-xl font-bold ${config.color}`}>{config.label}</p>
                 {scanResult.data?.reason && (
@@ -518,17 +727,9 @@ export default function QrScannerView() {
                 <p className="text-xs text-muted-foreground mt-2">Réinitialisation automatique...</p>
               </div>
             )}
-
-            {/* Camera placeholder */}
-            {!scanResult && !scanning && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 gap-2">
-                <Camera className="w-12 h-12 opacity-30" />
-                <p className="text-xs opacity-50">Scanner un ticket</p>
-              </div>
-            )}
           </div>
 
-          {/* QR Input */}
+          {/* QR Input (always visible as manual input; primary in manual mode) */}
           <div className="space-y-3">
             <div className="flex gap-2">
               <div className="relative flex-1">

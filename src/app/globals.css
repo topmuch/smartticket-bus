@@ -120,3 +120,39 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print Styles - Ticket Receipt */
+@media print {
+  /* Hide everything except the ticket dialog */
+  body > *:not([data-print-receipt]) {
+    display: none !important;
+  }
+
+  /* Show the dialog overlay content */
+  [data-radix-popper-content-wrapper],
+  [data-state="open"] {
+    display: block !important;
+    position: static !important;
+  }
+
+  /* Format the receipt */
+  .print-receipt {
+    display: block !important;
+    width: 80mm;
+    margin: 0 auto;
+    padding: 4mm;
+    font-size: 12px;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .print-receipt img {
+    max-width: 60mm !important;
+    max-height: 60mm !important;
+  }
+
+  /* Hide non-receipt buttons */
+  .print-hide {
+    display: none !important;
+  }
+}
