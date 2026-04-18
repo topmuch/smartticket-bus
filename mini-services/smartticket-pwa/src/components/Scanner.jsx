@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { api } from '../services/api';
 import { useOfflineSync } from '../hooks/useOfflineSync';
-import ResultCard from './ResultCard';
+import { initAudio, playResultSound, playBeep } from '../utils/SoundManager';
+import Feedback from './Feedback';
 import OfflineBanner from './OfflineBanner';
 
 const SCANNER_ID = 'smartticket-reader';
 
 export default function Scanner() {
   const [result, setResult] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scannerError, setScannerError] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -16,43 +18,21 @@ export default function Scanner() {
   const lastScanRef = useRef(null);
   const { isOffline, pendingCount, syncStatus, queueScan, syncPending } = useOfflineSync();
 
-  const playBeep = useCallback((valid) => {
-    try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      if (valid) {
-        oscillator.frequency.value = 880;
-        gainNode.gain.value = 0.3;
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.15);
-        setTimeout(() => {
-          const osc2 = audioCtx.createOscillator();
-          const gain2 = audioCtx.createGain();
-          osc2.connect(gain2);
-          gain2.connect(audioCtx.destination);
-          osc2.frequency.value = 1100;
-          gain2.gain.value = 0.3;
-          osc2.start();
-          osc2.stop(audioCtx.currentTime + 0.2);
-        }, 180);
-      } else {
-        oscillator.frequency.value = 300;
-        oscillator.type = 'sawtooth';
-        gainNode.gain.value = 0.2;
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.4);
-      }
-    } catch (e) {
-      // Audio not supported, ignore
-    }
+  // Initialize audio on first user interaction (browser policy)
+  useEffect(() => {
+    const init = () => initAudio();
+    document.addEventListener('click', init, { once: true });
+    document.addEventListener('touchstart', init, { once: true });
+    return () => {
+      document.removeEventListener('click', init);
+      document.removeEventListener('touchstart', init);
+    };
   }, []);
 
   const handleScan = useCallback(async (decodedText) => {
     const now = Date.now();
+
+    // Anti-doublon : bloquer si scan < 3s du même QR code
     if (isScanning) return;
     if (lastScanRef.current && now - lastScanRef.current.time < 3000 && lastScanRef.current.text === decodedText) return;
 
@@ -60,27 +40,38 @@ export default function Scanner() {
     lastScanRef.current = { text: decodedText, time: now };
 
     try {
+      // Feedback immédiat (vibration + bip)
       if (navigator.vibrate) navigator.vibrate(100);
 
       if (isOffline) {
-        playBeep(true);
+        // Mode hors-ligne : enregistrer dans la file IndexedDB
         await queueScan(decodedText, true);
-        setResult({ valid: true, message: 'Contrôle enregistré (hors-ligne)', offline: true });
+        const offlineResult = { valid: true, message: 'Contrôle enregistré (hors-ligne)', offline: true };
+        setResult(offlineResult);
+        setShowFeedback(true);
+        playBeep(); // Bip neutre pour hors-ligne
       } else {
+        // Mode en ligne : vérifier via API backend
         const res = await api.verifyTicket(decodedText);
         setResult(res.data);
-        playBeep(res.data?.valid === true);
+        setShowFeedback(true);
+        playResultSound(res.data?.valid === true);
       }
-
-      setTimeout(() => setResult(null), 5000);
     } catch (err) {
       console.error('Scan error:', err);
-      setResult({ valid: false, message: 'Erreur lors de la vérification', reason: 'error' });
-      playBeep(false);
+      const errorResult = { valid: false, message: 'Erreur lors de la vérification', reason: 'error' };
+      setResult(errorResult);
+      setShowFeedback(true);
+      playResultSound(false);
     } finally {
       setTimeout(() => setIsScanning(false), 2000);
     }
-  }, [isScanning, isOffline, queueScan, playBeep]);
+  }, [isScanning, isOffline, queueScan]);
+
+  const handleCloseFeedback = useCallback(() => {
+    setShowFeedback(false);
+    setResult(null);
+  }, []);
 
   useEffect(() => {
     let html5QrCode = null;
@@ -208,9 +199,6 @@ export default function Scanner() {
         )}
       </div>
 
-      {/* Result Card */}
-      {result && <ResultCard data={result} onDismiss={() => setResult(null)} />}
-
       {/* Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3
                       flex items-center justify-between safe-area-bottom">
@@ -222,6 +210,9 @@ export default function Scanner() {
           SmartTicket Bus v1.0
         </div>
       </div>
+
+      {/* Fullscreen Feedback Overlay */}
+      <Feedback data={showFeedback ? result : null} onClose={handleCloseFeedback} />
     </div>
   );
 }
