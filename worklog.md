@@ -873,3 +873,51 @@ Stage Summary:
 - Public portal: 7 endpoints accessible without auth
 - Security: JWT auth, invalid token rejection, unauthorized access blocking
 - Frontend compiles clean (64KB), ESLint 0 errors
+
+---
+Task ID: GUICHET-MODULES
+Agent: Main Orchestrator
+Task: Develop 3 modules for Interface Guichet (Ticket Counter)
+
+Work Log:
+- Analyzed existing architecture: app-shell.tsx (role-based nav), api.ts (backend mapping), ticket-sales.tsx (old 4-step wizard)
+- Installed qrcode.react v4.2.0 for QR code rendering in Next.js
+- Created Module A: src/components/smartticket/views/ticket-card.tsx
+  - Visual bus ticket card with perforated edge effects (semicircle cutouts)
+  - Green gradient header with SmartTicket branding
+  - Route display: FROM zone (green dot) → TO zone (red dot)
+  - Large FCFA price display
+  - QR Code rendered with QRCodeSVG from qrcode.react (140px, level M)
+  - Ticket details: number, passenger name, validity dates, status badge
+  - Print functionality: opens formatted print window with embedded QR
+  - Two action buttons: "Imprimer" and "Nouvelle Vente"
+  - Fade-in-up animation, full dark mode support
+- Created Module B: src/components/smartticket/views/guichet.tsx
+  - Main counter interface replacing the old 4-step wizard
+  - Header bar with operator name and cash session badge
+  - Cash session banner (amber) with "Ouvrir Caisse" button when no session open
+  - Blur overlay blocking sales until session is opened
+  - 2-column responsive layout (lg:3 grid)
+  - LEFT: Zone selection with swap button, auto-price calculation, passenger name, 3 payment methods, cash amount input with quick-fill buttons, change calculator, big green "VENDRE LE TICKET" button
+  - RIGHT: Today's stats cards, cash session info, last 5 tickets list
+  - TicketCard modal overlay after successful sale
+  - Auto-reset form after closing ticket card
+  - Uses apiFetch for all API calls
+- Updated Module C: src/components/smartticket/app-shell.tsx
+  - Replaced TicketSales import with Guichet
+  - Added Store icon from lucide-react
+  - Changed OPERATOR nav: 'Vente de Tickets' → 'Guichet' with Store icon
+  - Changed renderView: case 'sell-ticket' → <Guichet />
+
+Verification:
+- ESLint: 0 errors, 0 warnings
+- Next.js compilation: HTTP 200, 64KB HTML
+- Backend: HTTP 200, all APIs operational
+
+Stage Summary:
+- 2 new files: ticket-card.tsx (306 lines), guichet.tsx (754 lines)
+- 1 modified file: app-shell.tsx (import + nav + switch case)
+- Old ticket-sales.tsx still exists but is no longer used by app-shell
+- qrcode.react v4.2.0 installed
+- All text in French, mobile-first responsive, dark mode support
+- Full selling cycle: Select zones → See price → Enter payment → Sell → See ticket with QR code

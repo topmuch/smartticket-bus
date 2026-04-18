@@ -11,6 +11,7 @@ import {
   ScanLine,
   Settings,
   LogOut,
+  Store,
   Wallet,
   Clock,
   LayoutDashboard,
@@ -37,7 +38,7 @@ import ZonesFares from './views/zones-fares';
 import LinesStops from './views/lines-stops';
 import UsersManagement from './views/users-management';
 import Reports from './views/reports';
-import TicketSales from './views/ticket-sales';
+import Guichet from './views/guichet';
 import SalesHistory from './views/sales-history';
 import CashSession from './views/cash-session';
 import QrScanner from './views/qr-scanner';
@@ -76,7 +77,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { id: 'reports', label: 'Rapports', icon: <BarChart3 className="w-4 h-4" /> },
   ],
   OPERATOR: [
-    { id: 'sell-ticket', label: 'Vente de Tickets', icon: <Ticket className="w-4 h-4" /> },
+    { id: 'sell-ticket', label: 'Guichet', icon: <Store className="w-4 h-4" /> },
     { id: 'my-sales', label: 'Mes Ventes', icon: <Wallet className="w-4 h-4" /> },
     { id: 'cash-close', label: 'Clôture de Caisse', icon: <Clock className="w-4 h-4" /> },
   ],
@@ -145,7 +146,7 @@ export function AppShell() {
       case 'reports':
         return <Reports />;
       case 'sell-ticket':
-        return <TicketSales />;
+        return <Guichet />;
       case 'my-sales':
         return <SalesHistory />;
       case 'cash-close':
