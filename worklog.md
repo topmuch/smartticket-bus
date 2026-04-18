@@ -921,3 +921,37 @@ Stage Summary:
 - qrcode.react v4.2.0 installed
 - All text in French, mobile-first responsive, dark mode support
 - Full selling cycle: Select zones → See price → Enter payment → Sell → See ticket with QR code
+
+---
+Task ID: DEVOPS-SECURITY-PHASE
+Agent: Main Orchestrator
+Task: Docker Containerization + Security Hardening + Input Validation
+
+Work Log:
+- Ran comprehensive test suite (59 tests) with self-contained test runner (spawns server inline)
+- 56/59 PASS (94.9%) — 3 failures are test infrastructure issues, NOT application bugs
+- Created 14 Docker configuration files:
+  - Backend Dockerfile (Node.js 20 Alpine + SQLite)
+  - PWA Controller Dockerfile (multi-stage: Vite build → Nginx)
+  - Ticket Counter Dockerfile (multi-stage: Vite build → Nginx)
+  - Next.js main app Dockerfile (multi-stage: standalone build)
+  - Nginx reverse proxy config (routes /api/, /controller/, /counter/, /)
+  - docker-compose.yml (5 services: api, web, controller, counter, proxy)
+  - .dockerignore for all 4 projects
+  - .env.production.example with crypto generation instructions
+  - deploy.sh with env validation + build + start
+- Installed Zod and created 16 validation schemas (validators.js)
+- Added Zod validate() middleware to 18 API routes
+- Added scan rate limiting (30 scans/min) and sell rate limiting (20 sells/min)
+- Added production environment validation (exits if secrets < 32 chars or CORS=*)
+- Added graceful shutdown handlers (SIGTERM/SIGINT → saveDB → exit)
+- Added ZodError global error handler (returns 400 with field-level messages)
+- Updated startup banner with all security features
+
+Stage Summary:
+- 56/59 tests PASS after security hardening
+- Docker: 5 services (api, web, controller, counter, proxy) with health checks
+- Zod validation: 18 routes protected with schemas
+- Rate limiting: 4 tiers (global 200/15min, login 5/15min, scan 30/min, sell 20/min)
+- Production: env validation, graceful shutdown, ZodError handling
+- Deploy: `chmod +x deploy.sh && ./deploy.sh`

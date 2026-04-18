@@ -13,6 +13,25 @@ const authCtrl = require('../controllers/authController');
 
 // Middleware
 const { authenticate, authorize, optionalAuth } = require('../middleware/auth');
+const { validate } = require('../utils/validators');
+const {
+  loginSchema,
+  changePasswordSchema,
+  refreshTokenSchema,
+  createZoneSchema,
+  updateZoneSchema,
+  createTariffSchema,
+  calculatePriceSchema,
+  sellTicketSchema,
+  scanVerifySchema,
+  createCashSessionSchema,
+  closeCashSessionSchema,
+  syncControlsSchema,
+  createUserSchema,
+  updateUserSchema,
+  createLineSchema,
+  createStopSchema
+} = require('../utils/validators');
 
 // ============================================
 // ROUTES PUBLIQUES (sans authentification)
@@ -24,8 +43,8 @@ router.get('/', (req, res) => {
 });
 
 // Authentification
-router.post('/auth/login', authCtrl.login);
-router.post('/auth/refresh', authCtrl.refresh);
+router.post('/auth/login', validate(loginSchema), authCtrl.login);
+router.post('/auth/refresh', validate(refreshTokenSchema), authCtrl.refresh);
 
 // Info publique
 router.get('/public/info', optionalAuth, (req, res) => {
@@ -124,7 +143,7 @@ router.get('/schedules', optionalAuth, (req, res) => {
 router.get('/public/fares', optionalAuth, adminCtrl.getTariffs);
 
 // Calcul du prix (public - accessible depuis le portail passagers)
-router.post('/pricing/calculate', optionalAuth, ticketCtrl.calculatePrice);
+router.post('/pricing/calculate', validate(calculatePriceSchema), optionalAuth, ticketCtrl.calculatePrice);
 
 // ============================================
 // ROUTES AUTHENTIFIÉES
@@ -132,18 +151,18 @@ router.post('/pricing/calculate', optionalAuth, ticketCtrl.calculatePrice);
 
 // Profil
 router.get('/auth/me', authenticate, authCtrl.getMe);
-router.put('/auth/change-password', authenticate, authCtrl.changePassword);
+router.put('/auth/change-password', authenticate, validate(changePasswordSchema), authCtrl.changePassword);
 
 // --- TICKETS ---
 
 // Vendre un ticket (OPERATOR + SUPERADMIN)
-router.post('/sell', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.sellTicket);
+router.post('/sell', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(sellTicketSchema), ticketCtrl.sellTicket);
 
 // Scanner/Valider un ticket (CONTROLLER + SUPERADMIN)
 // /scan/verify est la route principale (format réponse: { valid, reason, message, details })
 // /scan est gardée pour backward compat (anciens tests)
-router.post('/scan/verify', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), scanCtrl.verifyTicket);
-router.post('/scan', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), scanCtrl.verifyTicket);
+router.post('/scan/verify', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), validate(scanVerifySchema), scanCtrl.verifyTicket);
+router.post('/scan', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), validate(scanVerifySchema), scanCtrl.verifyTicket);
 
 // Liste des tickets
 router.get('/tickets', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.getTickets);
@@ -156,35 +175,35 @@ router.get('/tickets/:id/qr', authenticate, ticketCtrl.generateQRImage);
 
 // --- TARIFS CRUD ---
 router.get('/tariffs', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.getTariffs);
-router.post('/tariffs', authenticate, authorize('SUPERADMIN'), adminCtrl.createTariff);
+router.post('/tariffs', authenticate, authorize('SUPERADMIN'), validate(createTariffSchema), adminCtrl.createTariff);
 router.put('/tariffs/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateTariff);
 router.delete('/tariffs/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteTariff);
 
 // --- LIGNES CRUD ---
-router.post('/lines', authenticate, authorize('SUPERADMIN'), adminCtrl.createLine);
+router.post('/lines', authenticate, authorize('SUPERADMIN'), validate(createLineSchema), adminCtrl.createLine);
 router.put('/lines/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateLine);
 router.delete('/lines/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteLine);
 
 // --- ARRÊTS CRUD ---
-router.post('/stops', authenticate, authorize('SUPERADMIN'), adminCtrl.createStop);
+router.post('/stops', authenticate, authorize('SUPERADMIN'), validate(createStopSchema), adminCtrl.createStop);
 router.put('/stops/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateStop);
 router.delete('/stops/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteStop);
 
 // --- ZONES (CRUD protégé) ---
-router.post('/zones', authenticate, authorize('SUPERADMIN'), adminCtrl.createZone);
-router.put('/zones/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateZone);
+router.post('/zones', authenticate, authorize('SUPERADMIN'), validate(createZoneSchema), adminCtrl.createZone);
+router.put('/zones/:id', authenticate, authorize('SUPERADMIN'), validate(updateZoneSchema), adminCtrl.updateZone);
 router.delete('/zones/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteZone);
 
 // --- UTILISATEURS ---
 router.get('/users', authenticate, authorize('SUPERADMIN'), adminCtrl.getUsers);
-router.post('/users', authenticate, authorize('SUPERADMIN'), adminCtrl.createUser);
-router.put('/users/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.updateUser);
+router.post('/users', authenticate, authorize('SUPERADMIN'), validate(createUserSchema), adminCtrl.createUser);
+router.put('/users/:id', authenticate, authorize('SUPERADMIN'), validate(updateUserSchema), adminCtrl.updateUser);
 router.delete('/users/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.deleteUser);
 
 // --- SESSIONS DE CAISSE ---
 router.get('/cash-sessions', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.getCashSessions);
-router.post('/cash-sessions', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.openCashSession);
-router.put('/cash-sessions/:id/close', authenticate, authorize('OPERATOR', 'SUPERADMIN'), adminCtrl.closeCashSession);
+router.post('/cash-sessions', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(createCashSessionSchema), adminCtrl.openCashSession);
+router.put('/cash-sessions/:id/close', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(closeCashSessionSchema), adminCtrl.closeCashSession);
 
 // --- HORAIRES CRUD ---
 router.post('/schedules', authenticate, authorize('SUPERADMIN'), adminCtrl.createSchedule);
@@ -193,7 +212,7 @@ router.put('/schedules/:id', authenticate, authorize('SUPERADMIN'), adminCtrl.up
 // --- CONTRÔLES ---
 router.get('/controls', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.getControls);
 router.get('/controls/stats', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.getControlsStats);
-router.post('/controls/sync', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.syncControls);
+router.post('/controls/sync', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), validate(syncControlsSchema), adminCtrl.syncControls);
 
 // --- DONNÉES HORS-LIGNE ---
 router.get('/offline/data', authenticate, authorize('CONTROLLER', 'SUPERADMIN'), adminCtrl.getOfflineData);

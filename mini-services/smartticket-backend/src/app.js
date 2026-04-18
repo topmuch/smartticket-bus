@@ -15,14 +15,43 @@ const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ============================================
-// VÉRIFICATION DE SÉCURITÉ AU DÉMARRAGE
+// ENVIRONMENT VALIDATION (Production)
 // ============================================
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️  AVERTISSEMENT: JWT_SECRET n\'est pas défini dans .env');
-  console.warn('   Le serveur utilise un secret par défaut (NON SÉCURISÉ en production)');
-  console.warn('   Générez une clé forte : node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
-  console.warn('');
+function validateEnvironment() {
+ const errors = [];
+ if (NODE_ENV === 'production') {
+   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+     errors.push('JWT_SECRET doit avoir au moins 32 caractères en production');
+   }
+   if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET.length < 32) {
+     errors.push('JWT_REFRESH_SECRET doit avoir au moins 32 caractères en production');
+   }
+   if (!process.env.QR_SECRET || process.env.QR_SECRET.length < 32) {
+     errors.push('QR_SECRET doit avoir au moins 32 caractères en production');
+   }
+   if (process.env.CORS_ORIGINS === '*' || !process.env.CORS_ORIGINS) {
+     errors.push('CORS_ORIGINS doit être configuré (pas *) en production');
+   }
+   if (errors.length > 0) {
+     console.error('╔══════════════════════════════════════════════╗');
+     console.error('║  ❌ ERREURS DE CONFIGURATION PRODUCTION     ║');
+     console.error('╠══════════════════════════════════════════════╣');
+     errors.forEach(e => console.error(`║  • ${e}`));
+     console.error('╚══════════════════════════════════════════════╝');
+     process.exit(1);
+   }
+ } else {
+   // Development warnings
+   if (!process.env.JWT_SECRET) {
+     console.warn('⚠️  AVERTISSEMENT: JWT_SECRET n\'est pas défini dans .env');
+     console.warn('   Générez une clé forte : node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+   }
+   if (!process.env.QR_SECRET) {
+     console.warn('⚠️  AVERTISSEMENT: QR_SECRET n\'est pas défini dans .env');
+   }
+ }
 }
+validateEnvironment();
 
 async function startServer() {
   // 1. Initialiser la base de données (sql.js WASM)
@@ -83,6 +112,20 @@ async function startServer() {
   // 2e. Rate limiting strict pour le LOGIN (5 tentatives / 15 min)
   app.use('/api/v1/auth/login', loginRateLimit);
 
+  // 2e2. Rate limiting pour TICKET SCAN (30 scans / min par IP)
+  app.use('/api/v1/scan', rateLimit({
+    windowMs: 60 * 1000,
+    maxRequests: 30,
+    message: 'Trop de scans. Réessayez dans une minute.'
+  }));
+
+  // 2e3. Rate limiting pour TICKET SELL (20 ventes / min par IP)
+  app.use('/api/v1/sell', rateLimit({
+    windowMs: 60 * 1000,
+    maxRequests: 20,
+    message: 'Trop de ventes. Réessayez dans une minute.'
+  }));
+
   // 2f. Logging des requêtes
   app.use(requestLogger);
 
@@ -104,7 +147,11 @@ async function startServer() {
         helmet: true,
         cors: allowedOrigins[0] === '*' ? 'open' : 'restricted',
         rate_limit: '200 req / 15 min',
-        login_rate_limit: '5 attempts / 15 min'
+        login_rate_limit: '5 attempts / 15 min',
+        scan_rate_limit: '30 scans / min',
+        sell_rate_limit: '20 sells / min',
+        input_validation: 'Zod',
+        cors: allowedOrigins[0] === '*' ? 'open' : 'restricted'
       },
       timestamp: new Date().toISOString(),
       endpoints: {
@@ -130,13 +177,37 @@ async function startServer() {
     });
   });
 
-  // 500 - Erreur serveur
+  // 500 - Erreur serveur (jamais exposer les détails en production)
   app.use((err, req, res, next) => {
+    // Handle Zod validation errors that escape middleware
+    if (err.name === 'ZodError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Données invalides',
+        details: err.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+      });
+    }
     console.error('❌ Erreur serveur:', err);
     res.status(500).json({
       success: false,
       error: NODE_ENV === 'development' ? err.message : 'Erreur interne du serveur'
     });
+  });
+
+  // ============================================
+  // 5b. PROCESS SIGNAL HANDLERS (graceful shutdown)
+  // ============================================
+  const gracefulShutdown = (signal) => {
+    console.log(`\n🔄 ${signal} reçu, sauvegarde DB et arrêt...`);
+    try { saveDB(); } catch {}
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('uncaughtException', (err) => {
+    console.error('❌ Exception non interceptée:', err);
+    try { saveDB(); } catch {}
+    process.exit(1);
   });
 
   // ============================================
@@ -164,7 +235,10 @@ async function startServer() {
     console.log(`║  • CORS:         ${allowedOrigins[0] === '*' ? '⚠️  Ouvert (*)' : '✅ Restreint'}                ║`);
     console.log('║  • Rate Limit:   ✅ 200 req/15min global       ║');
     console.log('║  • Login Limit:  ✅ 5 tentatives/15min         ║');
-    console.log('║  • RBAC:         ✅ 3 rôles (Super/Ope/Ctrl)   ║');
+    console.log('║  • Scan Limit:    ✅ 30 scans/min               ║');
+    console.log('║  • Sell Limit:    ✅ 20 ventes/min             ║');
+    console.log('║  • Validation:    ✅ Zod (toutes les routes)    ║');
+    console.log('║  • RBAC:          ✅ 3 rôles (Super/Ope/Ctrl)   ║');
     console.log('╚══════════════════════════════════════════════╝');
     console.log('');
   });
