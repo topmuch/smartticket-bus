@@ -736,3 +736,57 @@ Stage Summary:
 - Mobile-first with bottom tab navigation
 - Full ticket selling workflow verified end-to-end
 - Test credentials: guichet1@smartticket.bus / Oper@123
+
+---
+Task ID: PORTAL-ENHANCEMENT
+Agent: Main Orchestrator
+Task: Polish public portal - Route Planner, Mobile Bottom Nav, bug fixes
+
+Work Log:
+- Self-review of all 8 portal components identified 3 bugs:
+  1. CRITICAL: /api/v1/public/fares response not normalized (path used `/fares` but transformResponse only checked `/tariffs`) → FIXED
+  2. HIGH: /api/public/info response not normalized to camelCase (hero stats showed 0) → FIXED  
+  3. MEDIUM: Tariff SQL query missing zone colors → FIXED (added z1.color, z2.color to JOIN)
+- Created route-planner.tsx: interactive trip price calculator
+  - Two zone Select dropdowns with colored dots
+  - Swap button with rotation animation
+  - POST /api/pricing/calculate via apiFetch (body auto-transformed)
+  - Result card with gradient price banner, route visualization, zone badges
+  - Loading skeletons, error states, empty states
+  - id="itineraire" for anchor navigation
+- Created mobile-bottom-nav.tsx: fixed bottom navigation for mobile
+  - 6 nav items: Accueil, Itinéraire, Lignes, Arrêts, Horaires, Tarifs
+  - IntersectionObserver for active section tracking
+  - Smooth scroll on click
+  - Glassmorphism style matching header
+  - iOS safe area padding
+  - Touch feedback animations
+- Made POST /api/v1/pricing/calculate public (optionalAuth) for portal access
+- Updated all navigation (header, footer, mobile-nav) to include "Itinéraire"
+- Updated page.tsx to include RoutePlanner and MobileBottomNav components
+- Added normalizeKeys transform for /public/info endpoint in api.ts
+- Updated tariff transform to handle both /tariffs and /fares paths
+- Updated tariff color fields from from_zone_code_color to from_zone_color
+
+Bugs Fixed:
+1. api.ts transformResponse: path.includes('/tariffs') → also check '/fares'
+2. api.ts transformResponse: added handler for /public/info (normalizeKeys)
+3. Backend adminController.js: added z1.color, z2.color to tariff SQL query
+4. Backend routes/index.js: pricing/calculate changed from authenticate+authorize to optionalAuth
+
+Test Results:
+- ESLint: 0 errors
+- Next.js compilation: SUCCESS (63KB HTML, up from 54KB with new components)
+- Backend public/fares: 20 tariffs with zone colors (#dc2626, #ea580c, etc.)
+- Backend pricing/calculate (public): {price: 350, from_zone_name: "Cap Manuel", to_zone_name: "Liberté - Point E"}
+- All 8 public endpoints verified working without auth
+
+Stage Summary:
+- 10 portal components total (8 original + 2 new)
+- Public portal now has: Hero, Route Planner, Lines, Stops, Schedules, Fares + Header/Footer/Nav
+- Trip price calculator fully functional for unauthenticated users
+- Mobile bottom nav with scroll-spy active section tracking
+- All data properly normalized from snake_case (backend) to camelCase (frontend)
+- Zone colors now correctly displayed in tariff table and route planner
+- ESLint: 0 errors
+- All text in French

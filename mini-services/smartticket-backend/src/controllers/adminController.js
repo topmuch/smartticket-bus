@@ -255,8 +255,8 @@ exports.getTariffs = (req, res) => {
   try {
     const tariffs = db.prepare(`
       SELECT t.*, 
-             z1.name as from_zone_name, z1.code as from_zone_code,
-             z2.name as to_zone_name, z2.code as to_zone_code
+             z1.name as from_zone_name, z1.code as from_zone_code, z1.color as from_zone_color,
+             z2.name as to_zone_name, z2.code as to_zone_code, z2.color as to_zone_color
       FROM tariffs t
       LEFT JOIN zones z1 ON t.from_zone_id = z1.id
       LEFT JOIN zones z2 ON t.to_zone_id = z2.id

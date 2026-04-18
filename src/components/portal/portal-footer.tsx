@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 
 const NAV_LINKS = [
   { label: 'Accueil', href: '#accueil' },
+  { label: 'Itinéraire', href: '#itineraire' },
   { label: 'Lignes', href: '#lignes' },
   { label: 'Arrêts', href: '#arrets' },
   { label: 'Horaires', href: '#horaires' },

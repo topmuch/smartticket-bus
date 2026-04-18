@@ -123,8 +123,8 @@ router.get('/schedules', optionalAuth, (req, res) => {
 // Tarifs publics (lecture seule)
 router.get('/public/fares', optionalAuth, adminCtrl.getTariffs);
 
-// Calcul du prix (public pour les guichets)
-router.post('/pricing/calculate', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.calculatePrice);
+// Calcul du prix (public - accessible depuis le portail passagers)
+router.post('/pricing/calculate', optionalAuth, ticketCtrl.calculatePrice);
 
 // ============================================
 // ROUTES AUTHENTIFIÉES

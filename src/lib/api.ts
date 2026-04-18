@@ -164,8 +164,13 @@ function normalizeKeys(obj: any): any {
 function transformResponse(path: string, data: any): any {
   if (!data || !data.success) return data;
 
-  // Tariffs → normalize snake_case fields to camelCase for frontend components
-  if (path.includes('/tariffs') && Array.isArray(data.data)) {
+  // Public info: normalize snake_case to camelCase
+  if (path.includes('/public/info') && data.data && !Array.isArray(data.data)) {
+    data.data = normalizeKeys(data.data);
+  }
+
+  // Tariffs/fares → normalize snake_case fields to camelCase for frontend components
+  if ((path.includes('/tariffs') || path.includes('/fares')) && Array.isArray(data.data)) {
     data.data = data.data.map((t: any) => ({
       ...t,
       fromZoneId: t.from_zone_id,
@@ -174,13 +179,13 @@ function transformResponse(path: string, data: any): any {
         id: t.from_zone_id,
         name: t.from_zone_name,
         code: t.from_zone_code,
-        color: t.from_zone_code_color || '#6b7280',
+        color: t.from_zone_color || '#6b7280',
       },
       toZone: {
         id: t.to_zone_id,
         name: t.to_zone_name,
         code: t.to_zone_code,
-        color: t.to_zone_code_color || '#6b7280',
+        color: t.to_zone_color || '#6b7280',
       },
       isActive: t.is_active === 1 || t.is_active === true,
     }));
