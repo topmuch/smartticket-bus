@@ -666,3 +666,37 @@ Stage Summary:
 - 29/29 tests PASS (100%)
 - All features: camera scanner, beep/vibration, offline queue, auto-sync, PWA installable
 - Test credentials: control1@smartticket.bus / Control@123
+
+---
+Task ID: PUBLIC-PORTAL
+Agent: Main Orchestrator
+Task: Build Option C - Public Portal (Passenger-Facing Interface)
+
+Work Log:
+- Analyzed existing project state: backend (port 3001), Next.js (port 3000), PWA (port 3002)
+- Designed public portal architecture: 8 React components + page.tsx integration
+- Created portal-header.tsx: sticky header with smooth scroll nav, mobile Sheet menu, login button
+- Created hero-section.tsx: gradient hero with animated fade-in, live stats from /public/info API, CTA buttons
+- Created lines-section.tsx: line cards (horizontal scroll mobile, grid desktop), expandable detail panel with stops+schedules
+- Created stops-section.tsx: search input + zone filter Select, stop cards with MapPin icons and zone color dots
+- Created schedules-section.tsx: line + day filters, today auto-selected, grouped by line with time ranges
+- Created fares-section.tsx: zone cards with colors, tariff table from public API, info note for ticket purchase
+- Created login-dialog.tsx: Dialog-based login with test credentials, auto-close on success
+- Created portal-footer.tsx: 3-column footer (Brand, Navigation, Contact) with Dakar/Sénégal info
+- Updated page.tsx: PublicPortal for guests, AppShell for authenticated users
+- Added GET /api/v1/public/fares public endpoint to Express backend (optionalAuth)
+- Fixed fares API path mapping (/api/fares → /api/v1/public/fares)
+- ESLint: 0 errors
+- All 7 public API endpoints verified working
+- 35/35 self-audit points verified
+
+Stage Summary:
+- 8 new files in src/components/portal/
+- 1 modified file: src/app/page.tsx
+- 1 modified file: mini-services/smartticket-backend/src/routes/index.js
+- Public portal accessible without authentication
+- Login dialog accessible from portal header
+- All sections fetch data from Express backend via XTransformPort gateway
+- Mobile-first responsive, dark mode support
+- All text in French
+- ESLint: 0 errors

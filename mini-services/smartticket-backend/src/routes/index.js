@@ -120,6 +120,9 @@ router.get('/schedules', optionalAuth, (req, res) => {
   res.json({ success: true, data: schedules });
 });
 
+// Tarifs publics (lecture seule)
+router.get('/public/fares', optionalAuth, adminCtrl.getTariffs);
+
 // Calcul du prix (public pour les guichets)
 router.post('/pricing/calculate', authenticate, authorize('OPERATOR', 'SUPERADMIN'), ticketCtrl.calculatePrice);
 
