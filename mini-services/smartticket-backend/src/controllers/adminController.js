@@ -413,6 +413,34 @@ exports.updateUser = (req, res) => {
 };
 
 // ============================================
+// SUPPRIMER UN UTILISATEUR (soft delete)
+// ============================================
+exports.deleteUser = (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id, is_active FROM users WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+    if (existing.is_active === 0) return res.status(400).json({ success: false, error: 'Utilisateur déjà désactivé' });
+    
+    // Prevent self-deletion
+    if (req.params.id === req.user.userId) {
+      return res.status(400).json({ success: false, error: 'Vous ne pouvez pas vous désactiver vous-même' });
+    }
+
+    db.prepare('UPDATE users SET is_active = 0, updated_at = datetime(\'now\') WHERE id = ?').run(req.params.id);
+
+    db.prepare(`
+      INSERT INTO audit_logs (user_id, action, entity, entity_id, details)
+      VALUES (?, 'DELETE', 'User', ?, ?)
+    `).run(req.user.userId, req.params.id, 'Soft delete');
+
+    res.json({ success: true, message: 'Utilisateur désactivé' });
+  } catch (error) {
+    console.error('Erreur delete user:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
 // GESTION DES SESSIONS DE CAISSE
 // ============================================
 exports.getCashSessions = (req, res) => {

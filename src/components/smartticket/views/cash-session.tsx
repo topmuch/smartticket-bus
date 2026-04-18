@@ -112,8 +112,8 @@ export default function CashSessionView() {
   const handleCloseSession = async () => {
     if (!currentSession) return;
     setActionLoading(true);
-    // Express backend: PUT /api/v1/cash-sessions/:id/close with { actual_cash }
-    const res = await apiFetch(`/api/cash-sessions/${currentSession.id}/close`, {
+    // PUT /api/cash-sessions/close → api.ts maps to /api/v1/cash-sessions/close
+    const res = await apiFetch('/api/cash-sessions/close', {
       method: 'PUT',
       body: JSON.stringify({
         actual_cash: Number(closingCash) || 0,

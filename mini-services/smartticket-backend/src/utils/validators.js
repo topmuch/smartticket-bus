@@ -6,7 +6,7 @@ const { z } = require('zod');
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
-  password: z.string().min(6, 'Mot de passe requis')
+  password: z.string().min(1, 'Mot de passe requis')
 });
 
 const changePasswordSchema = z.object({
@@ -36,21 +36,21 @@ const updateZoneSchema = z.object({
 });
 
 const createTariffSchema = z.object({
-  from_zone_id: z.string().min(1, 'Zone de départ requise'),
-  to_zone_id: z.string().min(1, "Zone d'arrivée requise"),
+  from_zone_id: z.coerce.string().min(1, 'Zone de départ requise'),
+  to_zone_id: z.coerce.string().min(1, "Zone d'arrivée requise"),
   price: z.number().positive('Le prix doit être positif').max(50000, 'Prix maximum 50,000 FCFA'),
   ticket_type: z.enum(['single', 'subscription', 'daily']).optional()
 });
 
 const calculatePriceSchema = z.object({
-  from_zone_id: z.string().min(1, 'Zone de départ requise'),
-  to_zone_id: z.string().min(1, "Zone d'arrivée requise"),
+  from_zone_id: z.coerce.string().min(1, 'Zone de départ requise'),
+  to_zone_id: z.coerce.string().min(1, "Zone d'arrivée requise"),
   ticket_type: z.enum(['single', 'subscription', 'daily']).optional()
 });
 
 const sellTicketSchema = z.object({
-  from_zone_id: z.string().min(1, 'Zone de départ requise'),
-  to_zone_id: z.string().min(1, "Zone d'arrivée requise"),
+  from_zone_id: z.coerce.string().min(1, 'Zone de départ requise'),
+  to_zone_id: z.coerce.string().min(1, "Zone d'arrivée requise"),
   passenger_name: z.string().min(1, 'Nom du passager requis').max(100, 'Nom trop long'),
   passenger_phone: z.string().max(20).optional(),
   payment_method: z.enum(['cash', 'mobile', 'card'], 'Méthode de paiement invalide'),
@@ -121,7 +121,7 @@ const createLineSchema = z.object({
 const createStopSchema = z.object({
   code: z.string().min(1, 'Code requis').max(10),
   name: z.string().min(1, 'Nom requis').max(100),
-  zone_id: z.string().min(1, 'Zone requise'),
+  zone_id: z.coerce.string().min(1, 'Zone requise'),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional()
 });

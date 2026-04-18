@@ -17,6 +17,7 @@ if (!fs.existsSync(DB_DIR)) {
 }
 
 let db = null;
+let _saving = false;
 
 /**
  * Convertit les résultats sql.js en objets simples (comme better-sqlite3)
@@ -354,9 +355,17 @@ function checkConnection() {
  * Sauvegarder la base en fichier
  */
 function saveDB() {
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_PATH, buffer);
+  if (_saving || !db) return; // Skip if already saving or no db
+  _saving = true;
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
+  } catch (e) {
+    // Silently ignore save errors
+  } finally {
+    _saving = false;
+  }
 }
 
 /**

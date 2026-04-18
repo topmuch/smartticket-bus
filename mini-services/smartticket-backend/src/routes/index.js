@@ -312,6 +312,81 @@ router.get('/public/fares', optionalAuth, adminCtrl.getTariffs);
 // Calcul du prix (public - accessible depuis le portail passagers)
 router.post('/pricing/calculate', validate(calculatePriceSchema), optionalAuth, ticketCtrl.calculatePrice);
 
+// Recherche publique
+router.get('/public/search', optionalAuth, (req, res) => {
+  const { db } = require('../config/db');
+  const { q } = req.query;
+  if (!q || q.length < 2) {
+    return res.status(400).json({ success: false, error: 'Requête trop courte (min 2 caractères)' });
+  }
+  const lines = db.prepare(`
+    SELECT l.id, l.number, l.name, l.color
+    FROM lines l
+    WHERE l.is_active = 1 AND (l.name LIKE ? OR l.number LIKE ?)
+    ORDER BY l.number LIMIT 20
+  `).all(`%${q}%`, `%${q}%`);
+  const stops = db.prepare(`
+    SELECT s.id, s.name, s.code, s.zone_id, z.name as zone_name, z.color as zone_color
+    FROM stops s JOIN zones z ON s.zone_id = z.id
+    WHERE s.is_active = 1 AND (s.name LIKE ? OR s.code LIKE ?)
+    ORDER BY s.code LIMIT 20
+  `).all(`%${q}%`, `%${q}%`);
+  res.json({ success: true, data: { lines, stops } });
+});
+
+// Line Stops (public)
+router.get('/line-stops', optionalAuth, (req, res) => {
+  const { db } = require('../config/db');
+  const { line_id } = req.query;
+  let rows;
+  if (line_id) {
+    rows = db.prepare(`
+      SELECT ls.*, s.name as stop_name, s.code as stop_code, s.latitude, s.longitude,
+             s.zone_id, z.name as zone_name, z.code as zone_code, z.color as zone_color
+      FROM line_stops ls
+      LEFT JOIN stops s ON ls.to_stop_id = s.id
+      LEFT JOIN zones z ON s.zone_id = z.id
+      WHERE ls.line_id = ?
+      ORDER BY ls.stop_order
+    `).all(line_id);
+  } else {
+    rows = db.prepare(`
+      SELECT ls.*, s.name as stop_name, s.code as stop_code,
+             l.name as line_name, l.number as line_number
+      FROM line_stops ls
+      LEFT JOIN stops s ON ls.to_stop_id = s.id
+      LEFT JOIN lines l ON ls.line_id = l.id
+      ORDER BY l.number, ls.stop_order
+      LIMIT 100
+    `).all();
+  }
+  res.json({ success: true, data: rows });
+});
+
+// Cash Sessions - Open (convenience route)
+router.post('/cash-sessions/open', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(createCashSessionSchema), adminCtrl.openCashSession);
+
+// Cash Sessions - Close (finds open session for current operator)
+router.put('/cash-sessions/close', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(closeCashSessionSchema), (req, res) => {
+  const { db } = require('../config/db');
+  try {
+    const isSuperAdmin = req.user.role === 'SUPERADMIN';
+    const sessionQuery = isSuperAdmin
+      ? 'SELECT * FROM cash_sessions WHERE status = \'OPEN\' ORDER BY opened_at DESC LIMIT 1'
+      : 'SELECT * FROM cash_sessions WHERE operator_id = ? AND status = \'OPEN\' ORDER BY opened_at DESC LIMIT 1';
+    const sessionParams = isSuperAdmin ? [] : [req.user.userId];
+    const session = db.prepare(sessionQuery).get(...sessionParams);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Aucune session ouverte trouvée' });
+    }
+    req.params.id = session.id;
+    adminCtrl.closeCashSession(req, res);
+  } catch (error) {
+    console.error('Erreur close session:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
 // ============================================
 // ROUTES AUTHENTIFIÉES
 // ============================================
@@ -321,6 +396,9 @@ router.get('/auth/me', authenticate, authCtrl.getMe);
 router.put('/auth/change-password', authenticate, validate(changePasswordSchema), authCtrl.changePassword);
 
 // --- TICKETS ---
+
+// Calcul du prix (alias pour compatibilité frontend)
+router.post('/tickets/calculate-price', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(calculatePriceSchema), ticketCtrl.calculatePrice);
 
 // Vendre un ticket (OPERATOR + SUPERADMIN)
 router.post('/sell', authenticate, authorize('OPERATOR', 'SUPERADMIN'), validate(sellTicketSchema), ticketCtrl.sellTicket);

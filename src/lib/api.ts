@@ -41,6 +41,14 @@ export function toBackendUrl(
   else if (path === '/api/tickets/generate-qr') {
     path = path; // kept as-is, view handles the conversion
   }
+  // Map POST /api/cash-sessions (open session) → /api/v1/cash-sessions/open
+  else if (path === '/api/cash-sessions' && options?.method === 'POST') {
+    path = '/api/v1/cash-sessions/open';
+  }
+  // Map PUT /api/cash-sessions/close → /api/v1/cash-sessions/close
+  else if (path === '/api/cash-sessions/close' && options?.method === 'PUT') {
+    path = '/api/v1/cash-sessions/close';
+  }
   // Generic /api/* → /api/v1/* mapping
   else if (!path.startsWith('/api/v1/')) {
     path = path.replace('/api/', '/api/v1/');

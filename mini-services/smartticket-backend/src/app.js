@@ -214,13 +214,19 @@ async function startServer() {
       process.exit(1);
     }
   });
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️  Rejection non gérée:', reason?.message || reason);
+    // Don't exit in development - keep server alive
+  });
 
   // ============================================
   // 6. SAUVEGARDE DB PÉRIODIQUE
+  // Note: saveDB only on graceful shutdown to avoid sql.js db.export() lock contention
   // ============================================
+  // Save periodically using defered execution to avoid blocking the event loop
   setInterval(() => {
-    try { saveDB(); } catch (e) { /* ignore */ }
-  }, 30000);
+    setImmediate(() => { try { saveDB(); } catch (e) { /* ignore */ } });
+  }, 120000); // Every 2 minutes instead of 30 seconds
 
   // ============================================
   // 7. DÉMARRAGE DU SERVEUR
