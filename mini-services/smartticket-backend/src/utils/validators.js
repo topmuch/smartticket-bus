@@ -132,21 +132,30 @@ const createStopSchema = z.object({
 
 function validate(schema) {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      const errors = result.error.errors.map(e => ({
-        field: e.path.join('.'),
-        message: e.message
-      }));
+    try {
+      const result = schema.safeParse(req.body);
+      if (!result.success) {
+        const errorList = (result.error && result.error.errors) ? result.error.errors : [{ path: ['body'], message: 'Données invalides' }];
+        const errors = errorList.map(e => ({
+          field: Array.isArray(e.path) ? e.path.join('.') : String(e.path),
+          message: e.message || 'Erreur de validation'
+        }));
+        return res.status(400).json({
+          success: false,
+          error: 'Données invalides',
+          details: errors
+        });
+      }
+      // Replace req.body with validated/sanitized data
+      req.body = result.data;
+      next();
+    } catch (err) {
       return res.status(400).json({
         success: false,
         error: 'Données invalides',
-        details: errors
+        details: [{ field: 'body', message: err.message }]
       });
     }
-    // Replace req.body with validated/sanitized data
-    req.body = result.data;
-    next();
   };
 }
 

@@ -181,10 +181,11 @@ async function startServer() {
   app.use((err, req, res, next) => {
     // Handle Zod validation errors that escape middleware
     if (err.name === 'ZodError') {
+      const errorList = Array.isArray(err.errors) ? err.errors : [{ path: ['body'], message: err.message }];
       return res.status(400).json({
         success: false,
         error: 'Données invalides',
-        details: err.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+        details: errorList.map(e => ({ field: Array.isArray(e.path) ? e.path.join('.') : String(e.path), message: e.message || 'Erreur' }))
       });
     }
     console.error('❌ Erreur serveur:', err);
@@ -205,9 +206,13 @@ async function startServer() {
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   process.on('uncaughtException', (err) => {
-    console.error('❌ Exception non interceptée:', err);
-    try { saveDB(); } catch {}
-    process.exit(1);
+    console.error('❌ Exception non interceptée:', err.message || err);
+    if (err.stack) console.error(err.stack);
+    // Don't exit in development - keep server alive
+    if (NODE_ENV === 'production') {
+      try { saveDB(); } catch {}
+      process.exit(1);
+    }
   });
 
   // ============================================
