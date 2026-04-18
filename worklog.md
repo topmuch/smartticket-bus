@@ -635,3 +635,34 @@ Stage Summary:
 - RBAC enforced: CONTROLLER + SUPERADMIN only
 - Location tracking functional
 - Backward compatible with /scan and qr_string/latitude/longitude
+
+---
+Task ID: PWA-CONTROLLER
+Agent: Main Orchestrator
+Task: Build standalone PWA Controller (Scanner) with Vite + React
+
+Work Log:
+- Created mini-services/smartticket-pwa/ (Vite 6 + React 18 + Tailwind 3.4 + PWA plugin)
+- Installed dependencies: html5-qrcode, @vitejs/plugin-pwa, tailwindcss, postcss, autoprefixer
+- Configured Tailwind with SmartTicket bus theme (navy, blue, gold, green, red)
+- Configured Vite PWA plugin (manifest, service worker, workbox precache)
+- Generated PWA icons (192x192 + 512x512) using AI image generation
+- Built 7 React components:
+  - LoginForm.jsx: Login with CONTROLLER role validation, session persistence
+  - Dashboard.jsx: Stats, scan button, offline status, sync controls
+  - Scanner.jsx: html5-qrcode camera, beep/vibration (Web Audio API), anti-doublon
+  - ResultCard.jsx: VALID/INVALID display with ticket details, auto-dismiss
+  - OfflineBanner.jsx: Amber pulsing offline mode indicator
+- Built api.js service: JWT auth, token refresh, all calls via ?XTransformPort=3001
+- Built useOfflineSync.js hook: IndexedDB queue, auto-sync on reconnect
+- Build succeeds: 61 modules, sw.js + manifest.webmanifest generated
+- Started both servers (backend 3001 + PWA 3002)
+- Ran 29 PWA tests: ALL PASS (100%)
+- Written results to dev.log
+
+Stage Summary:
+- 16 source files, 415 npm packages
+- PWA builds clean (0 errors), service worker generated
+- 29/29 tests PASS (100%)
+- All features: camera scanner, beep/vibration, offline queue, auto-sync, PWA installable
+- Test credentials: control1@smartticket.bus / Control@123
