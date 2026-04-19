@@ -1461,3 +1461,32 @@ Stage Summary:
 - API now returns validControlRate as number (not string)
 - Frontend has defensive Number() wrapping for future safety
 - 2 files modified, no breaking changes
+---
+Task ID: FULL-DIAGNOSIS
+Agent: Main Orchestrator
+Task: Diagnostic complet du projet + correction de tous les bugs
+
+Work Log:
+- Audit exhaustif de toutes les vues frontend vs réponses API réelles
+- Découvert 8 bugs (5 critiques, 2 silencieux, 1 fonctionnel)
+- Corrigé les 5 bugs critiques (crashes TypeError):
+  1. controller-stats.tsx: validRate.toFixed() — API renvoyait string "75.0" → corrigé API + frontend avec Number()
+  2. controller-stats.tsx: dailyScanCounts utilise day.valid/invalid/total → API renvoie {date, count} → adapté
+  3. reports.tsx: fraudRate * 100 = NaN — API renvoyait string → corrigé API + frontend
+  4. reports.tsx: line.id/name/number undefined → API renvoie lineId/lineName/lineNumber → adapté
+  5. reports.tsx: zone.id/name undefined → API renvoie zoneId/zoneName → adapté
+- Corrigé les 2 bugs silencieux (sections toujours vides):
+  6. admin-dashboard.tsx: ticketsByType est un dict pas un array → Object.entries() au lieu de .map()
+  7. reports.tsx: même bug ticketsByType dict vs array → Object.entries()
+- Corrigé le bug fonctionnel:
+  8. guichet.tsx: envoyait fromZoneId comme fromStopId → changé en fromZoneId/toZoneId corrects
+- Corrigé 3 routes API pour renvoyer des numbers au lieu de strings:
+  - /api/controls/stats validRate: .toFixed(1) → Math.round(...)/10
+  - /api/reports/controls validRate: même fix
+  - /api/reports/controls fraudRate: même fix
+
+Stage Summary:
+- 8 bugs trouvés et corrigés
+- 7 fichiers modifiés: controller-stats.tsx, reports.tsx, admin-dashboard.tsx, guichet.tsx, controls/stats/route.ts, reports/controls/route.ts
+- ESLint: 0 erreurs
+- Dev server: HTTP 200

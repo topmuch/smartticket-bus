@@ -37,9 +37,9 @@ interface ControlStats {
   totalScans: number;
   validCount: number;
   invalidCount: number;
-  validRate: number;
+  validRate: string | number;
   breakdown: Record<string, number>;
-  dailyScanCounts: { date: string; total: number; valid: number; invalid: number }[];
+  dailyScanCounts: { date: string; count: number }[];
 }
 
 interface ControlRecord {
@@ -128,7 +128,7 @@ export default function ControllerStatsView() {
   }, [fetchData]);
 
   const maxDailyCount = stats?.dailyScanCounts
-    ? Math.max(...stats.dailyScanCounts.map((d) => d.total), 1)
+    ? Math.max(...stats.dailyScanCounts.map((d) => d.count), 1)
     : 1;
 
   return (
@@ -211,10 +211,10 @@ export default function ControllerStatsView() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Taux Validation</p>
-                    <p className="text-xl font-bold text-blue-700">{stats.validRate.toFixed(1)}%</p>
+                    <p className="text-xl font-bold text-blue-700">{Number(stats.validRate || 0).toFixed(1)}%</p>
                   </div>
                 </div>
-                <Progress value={stats.validRate} className="mt-2 h-1.5" />
+                <Progress value={Number(stats.validRate || 0)} className="mt-2 h-1.5" />
               </CardContent>
             </Card>
           </div>
@@ -277,39 +277,25 @@ export default function ControllerStatsView() {
                           month: 'short',
                         })}
                       </span>
-                      <div className="flex-1 flex gap-0.5 h-6">
+                      <div className="flex-1 h-6">
                         <div
-                          className="bg-green-500 rounded-l-sm h-full transition-all flex items-center justify-end"
+                          className="bg-primary/70 rounded-sm h-full transition-all flex items-center justify-end"
                           style={{
-                            width: `${maxDailyCount > 0 ? (day.valid / maxDailyCount) * 100 : 0}%`,
-                            minWidth: day.valid > 0 ? '4px' : '0px',
+                            width: `${maxDailyCount > 0 ? (day.count / maxDailyCount) * 100 : 0}%`,
+                            minWidth: day.count > 0 ? '4px' : '0px',
                           }}
                         >
-                          {day.valid > 0 && (
-                            <span className="text-[10px] text-white pr-1 font-medium">{day.valid}</span>
-                          )}
-                        </div>
-                        <div
-                          className="bg-red-500 rounded-r-sm h-full transition-all flex items-center justify-end"
-                          style={{
-                            width: `${maxDailyCount > 0 ? (day.invalid / maxDailyCount) * 100 : 0}%`,
-                            minWidth: day.invalid > 0 ? '4px' : '0px',
-                          }}
-                        >
-                          {day.invalid > 0 && (
-                            <span className="text-[10px] text-white pr-1 font-medium">{day.invalid}</span>
+                          {day.count > 0 && (
+                            <span className="text-[10px] text-white pr-1 font-medium">{day.count}</span>
                           )}
                         </div>
                       </div>
-                      <span className="text-xs font-medium w-8 text-right">{day.total}</span>
+                      <span className="text-xs font-medium w-8 text-right">{day.count}</span>
                     </div>
                   ))}
                   <div className="flex items-center gap-4 mt-2 pt-2 border-t">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className="w-3 h-3 bg-green-500 rounded" /> Valides
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className="w-3 h-3 bg-red-500 rounded" /> Invalides
+                      <div className="w-3 h-3 bg-primary/70 rounded" /> Contrôles
                     </div>
                   </div>
                 </div>

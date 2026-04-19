@@ -21,11 +21,11 @@ interface DashboardStats {
   totalRevenue: number;
   totalTicketsSold: number;
   totalControls: number;
-  validControlRate: number;
+  validControlRate: string | number;
   revenueByDay: { date: string; revenue: number; tickets: number }[];
-  ticketsByType: { type: string; count: number; revenue: number }[];
-  topLines: { id: string; number: number; name: string; revenue: number; tickets: number }[];
-  topZones: { id: string; name: string; revenue: number; tickets: number }[];
+  ticketsByType: Record<string, number>;
+  topLines: { lineId: string; lineName: string; lineNumber: string; revenue: number; tickets: number }[];
+  topZones: { zoneId: string; zoneName: string; zoneCode: string; revenue: number; tickets: number }[];
   activeSubscriptions: number;
   openCashSessions: number;
 }
@@ -34,8 +34,8 @@ interface ControlsStats {
   totalControls: number;
   validCount: number;
   invalidCount: number;
-  validRate: number;
-  fraudRate: number;
+  validRate: string | number;
+  fraudRate: string | number;
   controlsByResult: { result: string; count: number }[];
 }
 
@@ -200,7 +200,7 @@ export default function ReportsView() {
               title="Tickets Vendus"
               value={String(dashboard?.totalTicketsSold ?? 0)}
               icon={Ticket}
-              subtitle={dashboard?.ticketsByType ? `${dashboard.ticketsByType.length} type(s)` : undefined}
+              subtitle={dashboard?.ticketsByType && Object.keys(dashboard.ticketsByType).length > 0 ? `${Object.keys(dashboard.ticketsByType).length} type(s)` : undefined}
               colorClass="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
             />
             <KpiCard
@@ -216,9 +216,9 @@ export default function ReportsView() {
             />
             <KpiCard
               title="Taux Validation"
-              value={`${(dashboard?.validControlRate ?? 0).toFixed(1)}%`}
+              value={`${Number(dashboard?.validControlRate || 0).toFixed(1)}%`}
               icon={TrendingUp}
-              subtitle={controls?.fraudRate ? `Fraude: ${(controls.fraudRate * 100).toFixed(1)}%` : undefined}
+              subtitle={controls?.fraudRate ? `Fraude: ${Number(controls.fraudRate).toFixed(1)}%` : undefined}
               colorClass="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
             />
           </div>
@@ -329,14 +329,14 @@ export default function ReportsView() {
                       const topRevenue = Math.max(...dashboard.topLines.map((l) => l.revenue), 1);
                       const pct = (line.revenue / topRevenue) * 100;
                       return (
-                        <div key={line.id} className="space-y-1">
+                        <div key={line.lineId || `line-${idx}`} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                               <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-bold">
                                 {idx + 1}
                               </span>
                               <span className="font-medium">
-                                Ligne {line.number} – {line.name}
+                                {line.lineNumber || ''} – {line.lineName || 'Sans ligne'}
                               </span>
                             </div>
                             <span className="font-medium">{formatCurrency(line.revenue)}</span>
@@ -374,18 +374,18 @@ export default function ReportsView() {
                 </div>
               </CardHeader>
               <CardContent>
-                {dashboard?.ticketsByType && dashboard.ticketsByType.length > 0 ? (
+                {dashboard?.ticketsByType && Object.keys(dashboard.ticketsByType).length > 0 ? (
                   <div className="space-y-3">
-                    {dashboard.ticketsByType.map((item) => {
-                      const typeLabel = item.type === 'UNIT' ? 'Ticket Unité' : item.type === 'SUBSCRIPTION' ? 'Abonnement' : item.type;
+                    {Object.entries(dashboard.ticketsByType).map(([type, count]) => {
+                      const typeLabel = type === 'UNIT' ? 'Ticket Unité' : type === 'SUBSCRIPTION' ? 'Abonnement' : type;
                       return (
-                        <div key={item.type} className="flex items-center justify-between rounded-lg border p-3">
+                        <div key={type} className="flex items-center justify-between rounded-lg border p-3">
                           <div>
                             <p className="font-medium">{typeLabel}</p>
-                            <p className="text-sm text-muted-foreground">{item.count} vendu{item.count > 1 ? 's' : ''}</p>
+                            <p className="text-sm text-muted-foreground">{count} vendu{count > 1 ? 's' : ''}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(item.revenue)}</p>
+                            <Badge variant="secondary" className="font-mono">{count}</Badge>
                           </div>
                         </div>
                       );
@@ -411,13 +411,13 @@ export default function ReportsView() {
                 {dashboard?.topZones && dashboard.topZones.length > 0 ? (
                   <div className="space-y-3">
                     {dashboard.topZones.map((zone, idx) => (
-                      <div key={zone.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div key={zone.zoneId || `zone-${idx}`} className="flex items-center justify-between rounded-lg border p-3">
                         <div className="flex items-center gap-3">
                           <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-bold">
                             {idx + 1}
                           </span>
                           <div>
-                            <p className="font-medium">{zone.name}</p>
+                            <p className="font-medium">{zone.zoneName || 'Sans zone'}</p>
                             <p className="text-sm text-muted-foreground">{zone.tickets} ticket{zone.tickets > 1 ? 's' : ''}</p>
                           </div>
                         </div>

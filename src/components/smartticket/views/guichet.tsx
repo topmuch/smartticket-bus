@@ -249,8 +249,8 @@ export default function Guichet() {
     const res = await apiFetch('/api/tickets', {
       method: 'POST',
       body: JSON.stringify({
-        fromStopId: fromZoneId,
-        toStopId: toZoneId,
+        fromZoneId,
+        toZoneId,
         price,
         amountPaid: paymentMethod === 'cash' ? Number(amountPaid || 0) : price,
         paymentMethod,

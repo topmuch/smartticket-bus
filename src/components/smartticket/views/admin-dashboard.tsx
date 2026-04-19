@@ -34,9 +34,9 @@ interface DashboardData {
   activeSubscriptions: number;
   openCashSessions: number;
   revenueByDay: { date: string; revenue: number }[];
-  ticketsByType: { type: string; count: number }[];
-  topLines: { id: string; name: string; ticketCount: number }[];
-  topZones: { id: string; name: string; ticketCount: number }[];
+  ticketsByType: Record<string, number>;
+  topLines: { lineId: string; lineName: string; lineNumber: string; revenue: number; tickets: number }[];
+  topZones: { zoneId: string; zoneName: string; zoneCode: string; revenue: number; tickets: number }[];
 }
 
 type Period = 'today' | 'week' | 'month' | 'year';
@@ -261,14 +261,14 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {data.ticketsByType && data.ticketsByType.length > 0 ? (
-                  data.ticketsByType.map((item) => (
-                    <div key={item.type} className="flex items-center justify-between">
+                {data.ticketsByType && Object.keys(data.ticketsByType).length > 0 ? (
+                  Object.entries(data.ticketsByType).map(([type, count]) => (
+                    <div key={type} className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        {item.type === 'UNIT' ? 'Ticket Unité' : 'Abonnement'}
+                        {type === 'UNIT' ? 'Ticket Unité' : type === 'SUBSCRIPTION' ? 'Abonnement' : type}
                       </span>
                       <Badge variant="secondary" className="font-mono">
-                        {item.count}
+                        {count}
                       </Badge>
                     </div>
                   ))

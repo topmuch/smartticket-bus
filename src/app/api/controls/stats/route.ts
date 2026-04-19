@@ -79,7 +79,9 @@ export const GET = withAuth(async (req: NextRequest, user: JWTPayload) => {
         totalScans,
         validCount,
         invalidCount,
-        validRate: totalScans > 0 ? ((validCount / totalScans) * 100).toFixed(1) : '0',
+        validRate: totalScans > 0
+          ? Math.round((validCount / totalScans) * 1000) / 10
+          : 0,
         breakdown,
         dailyScanCounts,
       },

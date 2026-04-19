@@ -50,8 +50,8 @@ export const GET = withAuth(async (req: NextRequest, user: JWTPayload) => {
     });
 
     const fraudRate = totalControls > 0
-      ? ((fraudCount / totalControls) * 100).toFixed(1)
-      : '0';
+      ? Math.round((fraudCount / totalControls) * 1000) / 10
+      : 0;
 
     // Breakdown by result type
     const breakdownRaw = await db.control.groupBy({
@@ -132,8 +132,8 @@ export const GET = withAuth(async (req: NextRequest, user: JWTPayload) => {
         validCount,
         invalidCount,
         validRate: totalControls > 0
-          ? ((validCount / totalControls) * 100).toFixed(1)
-          : '0',
+          ? Math.round((validCount / totalControls) * 1000) / 10
+          : 0,
         fraudRate,
         fraudCount,
         breakdown,
