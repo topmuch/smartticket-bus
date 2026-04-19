@@ -1507,3 +1507,22 @@ Work Log:
 Stage Summary:
 - Fixed files: `src/components/smartticket/views/reports.tsx`, `src/app/api/reports/controls/route.ts`, `src/lib/api.ts`
 - All 4 bugs resolved: controls breakdown rendering, period filtering, zone name display, control timestamp display
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix SUPERADMIN Billetterie and OPERATOR dashboard not working
+
+Work Log:
+- Diagnosed: Both views use the `<Guichet />` component
+- Root cause 1: `transformResponse()` in api.ts used exact path match (`path === '/api/tickets'`) but frontend calls with query strings (`/api/tickets?limit=5`), so ticket list transform never fired → fromZone/toZone remained as objects showing `[object Object]`
+- Root cause 2: Guichet used `if (!ticketsFetched)` anti-pattern to fetch data during render, causing React strict mode cascading render issues
+- Fix 1: Added `basePath = path.split('?')[0]` in transformResponse, replaced all exact path matches with basePath
+- Fix 2: Consolidated 3 separate useEffect hooks (zones, cash session, tickets) into one mount effect, using `.then()` callbacks for async state updates
+- Also fixed OPERATOR and CONTROLLER user passwords (were not set during seed)
+- Lint passes with 0 errors
+
+Stage Summary:
+- Fixed files: `src/lib/api.ts`, `src/components/smartticket/views/guichet.tsx`
+- All path-based transforms now work correctly with query strings
+- Guichet component properly fetches data in useEffect

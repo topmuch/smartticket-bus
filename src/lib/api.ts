@@ -71,16 +71,19 @@ function normalizeKeys(obj: any): any {
 function transformResponse(path: string, data: any): any {
   if (!data || !data.success) return data;
 
+  // Strip query string for reliable path matching
+  const basePath = path.split('?')[0];
+
   // ── Public info ──────────────────────────────────────────────
   // /api/v1/public/info returns snake_case keys manually (not Prisma-generated)
-  if (path.includes('/public/info') && data.data && !Array.isArray(data.data)) {
+  if (basePath.includes('/public/info') && data.data && !Array.isArray(data.data)) {
     data.data = normalizeKeys(data.data);
   }
 
   // ── POST /api/tickets (sell ticket) ──────────────────────────
   // Local route returns full ticket with nested relations, qrString, qrToken.
   // Guichet/TicketCard expects SoldTicket with flat fields.
-  if (path === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.qrToken) {
+  if (basePath === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.qrToken) {
     const d = data.data;
     data.data = {
       id: d.id,
@@ -102,7 +105,7 @@ function transformResponse(path: string, data: any): any {
   // ── POST /api/tickets/validate (scan ticket) ─────────────────
   // Local route returns flat { success, valid, result, reason, ticket }.
   // QR scanner expects nested { success, data: { ticket, result, reason } }.
-  if (path === '/api/tickets/validate') {
+  if (basePath === '/api/tickets/validate') {
     const result = data.result || 'INVALID';
     const reason = data.reason || data.error || '';
 
@@ -154,7 +157,7 @@ function transformResponse(path: string, data: any): any {
   // ── GET /api/cash-sessions (list) ────────────────────────────
   // Local route returns sessions with actualCash field.
   // CashSessionView component expects closingBalance.
-  if (path.includes('/cash-sessions') && Array.isArray(data.data)) {
+  if (basePath.includes('/cash-sessions') && Array.isArray(data.data)) {
     data.data = data.data.map((s: any) => ({
       ...s,
       closingBalance: s.actualCash ?? null,
@@ -165,7 +168,7 @@ function transformResponse(path: string, data: any): any {
   // Local route returns { tickets: [...], pagination: {...} }.
   // Each ticket has fromZone/toZone as objects and uses soldAt.
   // Guichet TicketRecord expects fromZone/toZone as strings and createdAt.
-  if (path === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.tickets) {
+  if (basePath === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.tickets) {
     data.data.tickets = data.data.tickets.map((t: any) => ({
       ...t,
       fromZone: typeof t.fromZone === 'object' && t.fromZone ? t.fromZone.name : (t.fromZone || ''),
@@ -177,7 +180,7 @@ function transformResponse(path: string, data: any): any {
   // ── GET /api/controls (list) ──────────────────────────────
   // Local route returns controls with scannedAt.
   // ControllerStats ControlRecord expects createdAt.
-  if (path.includes('/api/controls') && data.data && !Array.isArray(data.data) && data.data.controls) {
+  if (basePath.includes('/api/controls') && data.data && !Array.isArray(data.data) && data.data.controls) {
     data.data.controls = data.data.controls.map((c: any) => ({
       ...c,
       createdAt: c.scannedAt || c.createdAt || '',
@@ -187,7 +190,7 @@ function transformResponse(path: string, data: any): any {
   // ── POST /api/cash-sessions (open) & PUT /api/cash-sessions/close (close) ──
   // Single cash session object response — add closingBalance alias
   if (
-    path.includes('/cash-sessions') &&
+    basePath.includes('/cash-sessions') &&
     !Array.isArray(data.data) &&
     data.data &&
     typeof data.data === 'object' &&

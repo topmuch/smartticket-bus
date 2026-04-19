@@ -129,16 +129,13 @@ export default function Guichet() {
   // Ticket modal
   const [soldTicket, setSoldTicket] = useState<SoldTicket | null>(null);
 
-  // ── Fetch zones on mount ──────────────────────────────
+  // ── Fetch zones, cash session, and recent tickets on mount ───
   useEffect(() => {
     apiFetch<Zone[]>('/api/zones').then((res) => {
       if (res.success && res.data) setZones(res.data);
       setZonesLoading(false);
     });
-  }, []);
 
-  // ── Check cash session on mount ───────────────────────
-  useEffect(() => {
     apiFetch<CashSession[]>('/api/cash-sessions?limit=1').then((res) => {
       if (res.success && res.data && res.data.length > 0) {
         const latest = res.data[0];
@@ -148,12 +145,7 @@ export default function Guichet() {
       }
       setSessionLoading(false);
     });
-  }, []);
 
-  // ── Fetch recent tickets on mount ─────────────────────
-  const [ticketsFetched, setTicketsFetched] = useState(false);
-  if (!ticketsFetched) {
-    setTicketsFetched(true);
     apiFetch<{ tickets?: TicketRecord[]; pagination?: Record<string, unknown> }>('/api/tickets?limit=5').then((res) => {
       if (res.success && res.data) {
         const tickets = Array.isArray(res.data) ? res.data : (res.data.tickets || []);
@@ -162,7 +154,7 @@ export default function Guichet() {
         setTodayStats({ count: tickets.length, total });
       }
     });
-  }
+  }, []);
 
   // ── Price calculation triggered by zone changes ───────
   const doCalculatePrice = async (from: string, to: string) => {
