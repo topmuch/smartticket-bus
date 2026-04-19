@@ -114,10 +114,39 @@ export default function ReportsView() {
   }, [period]);
 
   // ── Export Handler ───────────────────────────────────
-  function handleExport(type: 'revenue' | 'controls' | 'tickets') {
+  async function handleExport(type: 'revenue' | 'controls' | 'tickets') {
     const params = new URLSearchParams({ type });
     if (period !== 'month') params.set('period', period);
-    window.open(`/api/reports/export?${params.toString()}`, '_blank');
+
+    try {
+      const { accessToken } = (await import('@/stores/auth-store')).useAuthStore.getState();
+      const headers: Record<string, string> = {};
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+      const res = await fetch(`/api/reports/export?${params.toString()}`, { headers });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Erreur HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?(.+?)"?$/);
+      const filename = match ? match[1] : `export_${type}.csv`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erreur lors de l'export";
+      // Show error feedback — could use toast
+      console.error('Export error:', message);
+    }
   }
 
   // ── Compute Chart Data ───────────────────────────────

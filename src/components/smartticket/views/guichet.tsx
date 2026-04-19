@@ -223,14 +223,21 @@ export default function Guichet() {
 
   const handleOpenSession = async () => {
     setOpeningSession(true);
-    const res = await apiFetch<CashSession>('/api/cash-sessions', {
-      method: 'POST',
-      body: JSON.stringify({ openingBalance: 50000 }),
-    });
-    if (res.success && res.data) {
-      setCashSession(res.data);
+    try {
+      const res = await apiFetch<CashSession>('/api/cash-sessions', {
+        method: 'POST',
+        body: JSON.stringify({ openingBalance: 50000 }),
+      });
+      if (res.success && res.data) {
+        setCashSession(res.data);
+      } else {
+        // Error feedback via toast could be added here
+      }
+    } catch {
+      // Network error handling
+    } finally {
+      setOpeningSession(false);
     }
-    setOpeningSession(false);
   };
 
   const handleSell = async () => {
@@ -238,27 +245,31 @@ export default function Guichet() {
     setSelling(true);
     setSaleError('');
 
-    const res = await apiFetch('/api/tickets', {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'UNIT',
-        fromZoneId,
-        toZoneId,
-        price,
-        amountPaid: paymentMethod === 'cash' ? Number(amountPaid || 0) : price,
-        paymentMethod,
-        passengerName: passengerName || null,
-        cashSessionId: cashSession?.id || null,
-      }),
-    });
+    try {
+      const res = await apiFetch('/api/tickets', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'UNIT',
+          fromZoneId,
+          toZoneId,
+          price,
+          amountPaid: paymentMethod === 'cash' ? Number(amountPaid || 0) : price,
+          paymentMethod,
+          passengerName: passengerName || null,
+          cashSessionId: cashSession?.id || null,
+        }),
+      });
 
-    setSelling(false);
-
-    if (res.success && res.data) {
-      setSoldTicket(res.data as SoldTicket);
-      refreshTickets();
-    } else {
-      setSaleError(res.error || 'Erreur lors de la vente du ticket.');
+      if (res.success && res.data) {
+        setSoldTicket(res.data as SoldTicket);
+        refreshTickets();
+      } else {
+        setSaleError(res.error || 'Erreur lors de la vente du ticket.');
+      }
+    } catch {
+      setSaleError('Erreur réseau. Vérifiez votre connexion.');
+    } finally {
+      setSelling(false);
     }
   };
 

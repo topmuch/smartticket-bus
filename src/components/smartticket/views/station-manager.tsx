@@ -512,7 +512,12 @@ export default function StationManager() {
     setIsDragOver(false);
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      setCsvFile(files[0]);
+      const file = files[0];
+      if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+        toast.error('Veuillez sélectionner un fichier CSV.');
+        return;
+      }
+      setCsvFile(file);
       setCsvResult(null);
     }
   }
@@ -520,7 +525,12 @@ export default function StationManager() {
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setCsvFile(files[0]);
+      const file = files[0];
+      if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+        toast.error('Veuillez sélectionner un fichier CSV.');
+        return;
+      }
+      setCsvFile(file);
       setCsvResult(null);
     }
   }

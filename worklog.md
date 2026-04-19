@@ -110,3 +110,54 @@ Stage Summary:
 - New file: src/components/display/station-qr-info.tsx
 - Modified: src/components/display/digital-signage.tsx (import, StationQROverlay, relative container)
 - Zero lint errors, zero TypeScript errors in modified files
+
+---
+Task ID: 4
+Agent: main
+Task: Complete PWA Integration + Full System Checkup + Bug Fixes
+
+Work Log:
+- Generated PWA icons (192x192 and 512x512) using AI image generation
+- Created /public/manifest.json with full PWA metadata (name, icons, theme_color, display: standalone)
+- Created /public/sw.js with advanced caching strategies:
+  - Stale-While-Revalidate for navigation (HTML pages)
+  - Cache-First for static assets (JS/CSS/images)
+  - Network-First for API requests (with offline 503 fallback)
+  - Cache versioning and automatic cleanup on activation
+  - Message handler for skip-waiting and cache clearing
+- Created /src/components/pwa/pwa-provider.tsx:
+  - usePWA() hook: SW registration, install prompt capture, update detection
+  - PWAInstallBanner: dismissible install prompt with Smartphone icon
+  - PWAUpdateBanner: update notification with one-click apply
+- Created /src/components/pwa/offline-banner.tsx:
+  - Uses useSyncExternalStore for react-friendly online/offline detection
+  - Amber banner with WifiOff icon and aria-live assertion
+- Updated /src/app/layout.tsx:
+  - Added PWA metadata: manifest link, apple-touch-icon, mobile-web-app-capable
+  - Added apple-mobile-web-app-capable and apple-mobile-web-app-status-bar-style
+  - Added viewport config with theme-color for light/dark modes
+  - Added OpenGraph metadata for social sharing
+- Updated /src/app/page.tsx:
+  - Integrated OfflineBanner, PWAUpdateBanner, PWAInstallBanner globally
+  - Banners appear on both landing page and authenticated views
+
+Bug Fixes Applied:
+1. live-schedule-demo.tsx: Fixed random departure time drift — removed Math.random() offset that mutated times every 30s
+2. live-schedule-demo.tsx: Fixed midnight crossover bug in getMinutesUntil — handles 23:50→00:10 correctly
+3. guichet.tsx: Added try/catch/finally to handleOpenSession and handleSell — prevents permanent loading state on network error
+4. station-manager.tsx: Added CSV file type validation on drag-and-drop and file select
+5. digital-signage.tsx: Fixed generateMockData() being called twice per render — now uses displayData from polling hook
+6. reports.tsx: Fixed CSV export — replaced window.open() with authenticated fetch+blob download (was sending no auth header)
+
+Full System Checkup (16 API endpoints tested):
+- Auth: Login (admin/operator/controller) ✅, Login (wrong creds) ✅, Auth/me ✅
+- Public: info, search, v1/info, v1/fares, v1/lines, v1/zones — all ✅
+- Display: Digital signage (?display=peters) ✅
+- Protected: tickets, dashboard, users, controls/stats — all ✅
+
+Stage Summary:
+- PWA fully integrated: manifest, service worker, install prompt, offline detection
+- 6 bugs fixed across 5 components
+- All 16 API endpoints verified working
+- Zero ESLint errors
+- App compiles and serves correctly (HTTP 200, 145KB HTML)

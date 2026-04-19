@@ -25,7 +25,10 @@ const getMinutesUntil = (departureTime: string): number => {
   const depMinutes = h * 60 + m;
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  return depMinutes - nowMinutes;
+  let diff = depMinutes - nowMinutes;
+  // Handle midnight crossover (e.g. 23:50 → 00:10 should be +20, not -1420)
+  if (diff < -720) diff += 1440;
+  return diff;
 };
 
 const STATUS_ORDER: Record<MockDeparture['status'], number> = {
@@ -39,41 +42,19 @@ export function LiveScheduleDemo() {
   const [departures, setDepartures] = useState<MockDeparture[]>(mockScheduleData);
   const [currentTime, setCurrentTime] = useState('');
 
-  // Live clock + auto-refresh every 30s
+  // Live clock update — departure times remain stable (no random drift)
   useEffect(() => {
     const update = () => {
       setCurrentTime(new Date().toLocaleTimeString('fr-FR'));
-      setDepartures((prev) =>
-        prev.map((d) => {
-          if (d.status === 'completed') return d;
-          const [h, m] = d.departure.split(':').map(Number);
-          const offset = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
-          const newMin = Math.max(0, Math.min(59, m + offset));
-          const newDep = `${String(h).padStart(2, '0')}:${String(newMin).padStart(2, '0')}`;
-          const [ah, am] = d.arrival.split(':').map(Number);
-          const newArr = `${String(ah).padStart(2, '0')}:${String(Math.min(59, am + offset)).padStart(2, '0')}`;
-          return { ...d, departure: newDep, arrival: newArr };
-        }),
-      );
     };
     update();
     const interval = setInterval(update, 30_000);
     return () => clearInterval(interval);
   }, []);
 
+  // Refresh just resets the clock (times are stable, no drift)
   const handleRefresh = useCallback(() => {
-    setDepartures((prev) =>
-      prev.map((d) => {
-        if (d.status === 'completed') return d;
-        const [h, m] = d.departure.split(':').map(Number);
-        const offset = Math.floor(Math.random() * 3) - 1;
-        const newMin = Math.max(0, Math.min(59, m + offset));
-        const newDep = `${String(h).padStart(2, '0')}:${String(newMin).padStart(2, '0')}`;
-        const [ah, am] = d.arrival.split(':').map(Number);
-        const newArr = `${String(ah).padStart(2, '0')}:${String(Math.min(59, am + offset)).padStart(2, '0')}`;
-        return { ...d, departure: newDep, arrival: newArr };
-      }),
-    );
+    setCurrentTime(new Date().toLocaleTimeString('fr-FR'));
   }, []);
 
   const filteredDepartures = useMemo(() => {

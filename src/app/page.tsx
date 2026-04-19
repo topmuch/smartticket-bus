@@ -12,6 +12,8 @@ import { HelpSection } from '@/components/computicket/help-section';
 import { SignageDemoSection } from '@/components/computicket/signage-demo-section';
 import { Footer } from '@/components/computicket/footer';
 import { DigitalSignage } from '@/components/display/digital-signage';
+import { PWAInstallBanner, PWAUpdateBanner } from '@/components/pwa/pwa-provider';
+import { OfflineBanner } from '@/components/pwa/offline-banner';
 import { Bus } from 'lucide-react';
 import { LiveScheduleDemo } from '@/components/portal/live-schedule-demo';
 
@@ -110,7 +112,10 @@ function HomeContent() {
 export default function Home() {
   return (
     <Suspense fallback={<LoadingScreen />}>
+      <OfflineBanner />
+      <PWAUpdateBanner />
       <HomeContent />
+      <PWAInstallBanner />
     </Suspense>
   );
 }

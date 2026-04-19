@@ -940,13 +940,11 @@ function DigitalSignageInner() {
     return `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   })();
 
-  const departures = isDemo
-    ? generateMockData().departures
-    : (displayData?.departures || []);
+  // Use displayData from polling hook (which generates mock data in demo mode)
+  // Avoid calling generateMockData() directly here to prevent data inconsistency
+  const departures = displayData?.departures || [];
 
-  const messages = isDemo
-    ? generateMockData().messages
-    : (displayData?.messages || []);
+  const messages = displayData?.messages || [];
 
   return (
     <div
