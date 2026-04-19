@@ -13,6 +13,7 @@ import {
   Download,
   Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -55,17 +56,40 @@ export default function TicketCard({ ticket, onClose, onNewSale }: TicketCardPro
       
       const response = await fetch(`/api/tickets/${ticket.id}/pdf`, { headers });
       if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ticket_${ticket.ticketNumber}.pdf`;
-        link.click();
-        URL.revokeObjectURL(url);
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/pdf')) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `ticket_${ticket.ticketNumber}.pdf`;
+          link.click();
+          URL.revokeObjectURL(url);
+        } else {
+          // Server returned JSON error instead of PDF
+          const errorData = await response.json().catch(() => null);
+          const errorMsg = errorData?.error || 'Erreur lors de la génération du PDF';
+          toast.error(errorMsg, {
+            description: 'Utilisez le bouton Imprimer comme alternative.',
+          });
+        }
+      } else {
+        // Non-OK status (401, 403, 404, 500...)
+        let errorMsg = `Erreur serveur (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData?.error || errorMsg;
+        } catch {
+          // response body was not JSON
+        }
+        toast.error(errorMsg, {
+          description: 'Utilisez le bouton Imprimer comme alternative.',
+        });
       }
-    } catch {
-      // Fallback to print
-      handlePrint();
+    } catch (err) {
+      toast.error('Erreur réseau', {
+        description: 'Impossible de télécharger le PDF. Vérifiez votre connexion.',
+      });
     }
     setDownloadingPdf(false);
   };

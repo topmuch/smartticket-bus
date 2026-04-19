@@ -307,17 +307,18 @@ export default function QrScannerView() {
       setScanResult(res);
       setScanning(false);
 
-      const isValid = res.success === true;
+      // Check the actual validation result, not just the HTTP success
+      const isValid = res.data?.result === 'VALID';
       playBeep(isValid);
       fetchTodayStats();
     }
 
-    // Auto reset after 3 seconds
+    // Auto reset after 5 seconds (allows user time to read the result)
     autoResetRef.current = setTimeout(() => {
       setScanResult(null);
       setQrInput('');
       inputRef.current?.focus();
-    }, 3000);
+    }, 5000);
 
     // Cooldown: disable scan for 2 seconds
     setCooldown(true);
@@ -449,25 +450,13 @@ export default function QrScannerView() {
   }, []);
 
   const handleDemoScan = async () => {
-    // Fetch a real ticket from the API to demo with actual ticket number
-    try {
-      const res = await apiFetch<{ tickets?: any[] } | any[]>('/api/tickets?limit=1');
-      if (res.success && res.data) {
-        const tickets = Array.isArray(res.data) ? res.data : (res.data.tickets || []);
-        if (tickets.length > 0) {
-          const ticketNumber = tickets[0].ticketNumber;
-          if (ticketNumber) {
-            setQrInput(ticketNumber);
-            handleScan(ticketNumber);
-            return;
-          }
-        }
-      }
-    } catch {
-      // Fallback to error demo
-    }
-    setQrInput('INVALID_TICKET');
-    handleScan('INVALID_TICKET');
+    // Build a ticket number with today's date for demo validation.
+    // Controllers can't access GET /api/tickets, so we validate directly.
+    // This will show NOT_FOUND (no such ticket) or VALID if one exists.
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const demoTicketNumber = `TK-${today}-0001`;
+    setQrInput(demoTicketNumber);
+    handleScan(demoTicketNumber);
   };
 
   const handleSync = async () => {
@@ -724,10 +713,14 @@ export default function QrScannerView() {
                 <div className={config.color}>{config.icon}</div>
                 <p className={`text-xl font-bold ${config.color}`}>{config.label}</p>
                 {scanResult.data?.reason && (
-                  <p className="text-sm text-muted-foreground text-center">{scanResult.data.reason}</p>
+                  <p className={`text-sm font-medium text-center px-3 py-1.5 rounded-lg max-w-[250px] ${
+                    resultType === 'VALID'
+                      ? 'text-green-700 bg-green-100/60'
+                      : 'text-red-700 bg-red-100/60'
+                  }`}>{scanResult.data.reason}</p>
                 )}
                 {scanResult.error && (
-                  <p className="text-sm text-muted-foreground text-center">{scanResult.error}</p>
+                  <p className="text-sm font-medium text-red-700 bg-red-100/60 text-center px-3 py-1.5 rounded-lg max-w-[250px]">{scanResult.error}</p>
                 )}
                 {scanResult.offline && (
                   <Badge variant="outline" className="text-xs bg-white/50 border-amber-300 text-amber-700">
@@ -735,7 +728,19 @@ export default function QrScannerView() {
                     Vérification hors-ligne
                   </Badge>
                 )}
-                <p className="text-xs text-muted-foreground mt-2">Réinitialisation automatique...</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 text-xs"
+                  onClick={() => {
+                    if (autoResetRef.current) clearTimeout(autoResetRef.current);
+                    setScanResult(null);
+                    setQrInput('');
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Fermer
+                </Button>
               </div>
             )}
           </div>
@@ -747,7 +752,7 @@ export default function QrScannerView() {
                 <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   ref={inputRef}
-                  placeholder="N° Ticket (TK-...) ou QR code..."
+                  placeholder="TK-20250101-0001 ou QR code JWT"
                   value={qrInput}
                   onChange={(e) => setQrInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleScan(qrInput)}

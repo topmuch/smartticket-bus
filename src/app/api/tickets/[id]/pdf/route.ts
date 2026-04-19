@@ -396,11 +396,22 @@ export const GET = withAuth(async (_req, _user, context) => {
     });
   } catch (error: unknown) {
     console.error('Error generating PDF ticket:', error);
-    const message =
-      error instanceof Error ? error.message : 'Erreur lors de la génération du PDF';
+    let message = 'Erreur lors de la génération du PDF';
+    let status = 500;
+
+    if (error instanceof Error) {
+      // jsPDF often throws about missing canvas when addImage fails in Node.js
+      if (error.message.includes('canvas') || error.message.includes('Canvas')) {
+        message = 'Module graphique (canvas) manquant sur le serveur. Veuillez utiliser le bouton Imprimer.';
+      } else if (error.message.includes('addImage')) {
+        message = 'Erreur lors de l\'ajout du code QR au PDF. Veuillez utiliser le bouton Imprimer.';
+      } else {
+        message = error.message;
+      }
+    }
     return NextResponse.json(
       { success: false, error: message },
-      { status: 500 }
+      { status }
     );
   }
 }, ['SUPERADMIN', 'OPERATOR']);

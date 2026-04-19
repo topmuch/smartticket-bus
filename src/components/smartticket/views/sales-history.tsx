@@ -48,12 +48,18 @@ interface TicketRecord {
 }
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
+  cash: <Banknote className="w-3.5 h-3.5" />,
+  mobile: <Smartphone className="w-3.5 h-3.5" />,
+  card: <CreditCard className="w-3.5 h-3.5" />,
   ESPECES: <Banknote className="w-3.5 h-3.5" />,
   MOBILE_MONEY: <Smartphone className="w-3.5 h-3.5" />,
   CARTE: <CreditCard className="w-3.5 h-3.5" />,
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
+  cash: 'Espèces',
+  mobile: 'Mobile Money',
+  card: 'Carte',
   ESPECES: 'Espèces',
   MOBILE_MONEY: 'Mobile Money',
   CARTE: 'Carte',
@@ -64,10 +70,8 @@ export default function SalesHistoryView() {
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return today;
-  });
+  // Default to empty string so ALL tickets are shown (no date filter by default)
+  const [dateFilter, setDateFilter] = useState('');
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -103,10 +107,10 @@ export default function SalesHistoryView() {
   const totalSales = tickets.length;
   const totalRevenue = tickets.reduce((sum, t) => sum + t.price, 0);
   const cashTotal = tickets
-    .filter((t) => t.paymentMethod === 'ESPECES')
+    .filter((t) => t.paymentMethod === 'cash' || t.paymentMethod === 'ESPECES')
     .reduce((sum, t) => sum + t.amountPaid, 0);
   const mobileMoneyTotal = tickets
-    .filter((t) => t.paymentMethod === 'MOBILE_MONEY')
+    .filter((t) => t.paymentMethod === 'mobile' || t.paymentMethod === 'MOBILE_MONEY')
     .reduce((sum, t) => sum + t.price, 0);
 
   const handleExportCSV = () => {
@@ -126,7 +130,7 @@ export default function SalesHistoryView() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ventes_${dateFilter}.csv`;
+    link.download = `ventes${dateFilter ? `_${dateFilter}` : '_toutes'}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };

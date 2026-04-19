@@ -10,9 +10,9 @@ async function seed() {
   // =============================================
   console.log('📋 Creating users...');
 
-  const adminPassword = await hashPassword('Admin@123');
-  const operatorPassword = await hashPassword('Oper@123');
-  const controllerPassword = await hashPassword('Control@123');
+  const adminPassword = await hashPassword('admin123');
+  const operatorPassword = await hashPassword('admin123');
+  const controllerPassword = await hashPassword('admin123');
 
   const superadmin = await db.user.upsert({
     where: { email: 'admin@smartticket.bus' },
@@ -621,11 +621,11 @@ async function seed() {
   console.log('  • 4 Sample Controls');
   console.log('  • 4 System Config entries');
   console.log('\n🔑 Test Accounts:');
-  console.log('  • Superadmin: admin@smartticket.bus / Admin@123');
-  console.log('  • Operator 1: guichet1@smartticket.bus / Oper@123');
-  console.log('  • Operator 2: guichet2@smartticket.bus / Oper@123');
-  console.log('  • Controller 1: control1@smartticket.bus / Control@123');
-  console.log('  • Controller 2: control2@smartticket.bus / Control@123');
+  console.log('  • Superadmin: admin@smartticket.bus / admin123');
+  console.log('  • Operator 1: guichet1@smartticket.bus / admin123');
+  console.log('  • Operator 2: guichet2@smartticket.bus / admin123');
+  console.log('  • Controller 1: control1@smartticket.bus / admin123');
+  console.log('  • Controller 2: control2@smartticket.bus / admin123');
 
   await db.$disconnect();
 }
