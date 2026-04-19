@@ -77,7 +77,7 @@ const DAY_OPTIONS = [
 // ============================================
 
 function LiveClock() {
-  const [time, setTime] = useState(new Date().toLocaleTimeString('fr-FR'));
+  const [time, setTime] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -89,8 +89,8 @@ function LiveClock() {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 shadow-sm">
       <Clock className="h-4 w-4 text-primary" />
-      <span className="font-mono text-sm font-bold tracking-wide tabular-nums text-foreground">
-        {time}
+      <span className="font-mono text-sm font-bold tracking-wide tabular-nums text-foreground" suppressHydrationWarning>
+        {time || '--:--:--'}
       </span>
     </div>
   );

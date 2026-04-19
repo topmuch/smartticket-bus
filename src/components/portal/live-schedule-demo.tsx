@@ -37,12 +37,12 @@ const STATUS_ORDER: Record<MockDeparture['status'], number> = {
 export function LiveScheduleDemo() {
   const [selectedLine, setSelectedLine] = useState<string>('ALL');
   const [departures, setDepartures] = useState<MockDeparture[]>(mockScheduleData);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [currentTime, setCurrentTime] = useState('');
 
   // Live clock + auto-refresh every 30s
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
+    const update = () => {
+      setCurrentTime(new Date().toLocaleTimeString('fr-FR'));
       setDepartures((prev) =>
         prev.map((d) => {
           if (d.status === 'completed') return d;
@@ -55,7 +55,9 @@ export function LiveScheduleDemo() {
           return { ...d, departure: newDep, arrival: newArr };
         }),
       );
-    }, 30_000);
+    };
+    update();
+    const interval = setInterval(update, 30_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -105,7 +107,7 @@ export function LiveScheduleDemo() {
       );
     }
 
-    // upcoming
+    // upcoming — suppressHydrationWarning on wrapper avoids server/client time mismatch
     const minutesUntil = getMinutesUntil(dep.departure);
     if (minutesUntil <= 0) {
       return (
@@ -126,13 +128,13 @@ export function LiveScheduleDemo() {
         style={{ backgroundColor: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
       >
         <Clock className="h-3 w-3" />
-        Dans {minutesUntil} min
+        <span suppressHydrationWarning>Dans {minutesUntil} min</span>
       </Badge>
     );
   };
 
   return (
-    <section id="horaires-demo" className="py-20 bg-muted/30 relative overflow-hidden">
+    <section id="horaires-demo" className="py-20 bg-muted/30 relative overflow-hidden" suppressHydrationWarning>
       <span id="horaires" className="sr-only" />
       {/* Background decoration: subtle gradient orbs */}
       <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-emerald-500/5 blur-3xl" />
@@ -192,8 +194,8 @@ export function LiveScheduleDemo() {
         <div className="flex justify-center mb-6">
           <div className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-2 shadow-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm font-bold tabular-nums text-foreground">
-              {currentTime.toLocaleTimeString('fr-FR')}
+            <span className="font-mono text-sm font-bold tabular-nums text-foreground" suppressHydrationWarning>
+              {currentTime || '--:--:--'}
             </span>
           </div>
         </div>

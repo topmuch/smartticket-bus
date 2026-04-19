@@ -1423,3 +1423,26 @@ Stage Summary:
 - Demo signage accessible via /?display=peters&mode=demo
 - All existing functionality preserved (auth, admin, etc.)
 
+---
+Task ID: HYDRATION-FIX
+Agent: Main Orchestrator
+Task: Fix React hydration error on page load
+
+Work Log:
+- Analyzed user-reported "Hydration failed because the server rendered text didn't match the client" error
+- Identified 3 root causes:
+  1. `useSearchParams()` in page.tsx without `<Suspense>` boundary — #1 cause (Next.js 14+ requirement)
+  2. `LiveClock` in schedules-section.tsx rendering `new Date().toLocaleTimeString('fr-FR')` during SSR — timezone mismatch between server (UTC) and client
+  3. `LiveScheduleDemo` rendering `currentTime.toLocaleTimeString('fr-FR')` and `getMinutesUntil()` (new Date()) during SSR — same timezone issue
+- Applied fixes:
+  1. page.tsx: Extracted `HomeContent` inner component with `useSearchParams()`, wrapped in `<Suspense fallback={<LoadingScreen />}>` in exported `Home`
+  2. schedules-section.tsx LiveClock: Changed to initialize time as empty string, set via `setInterval` callback only (no direct setState in effect body), added `suppressHydrationWarning` on time span
+  3. live-schedule-demo.tsx: Removed `mounted` state (avoided ESLint set-state-in-effect error), changed to initialize `currentTime` as empty string, update via callback in `setInterval`, added `suppressHydrationWarning` on section wrapper and time/status elements
+- Verified: ESLint 0 errors, dev server HTTP 200, HTML renders correctly
+
+Stage Summary:
+- 3 files modified: src/app/page.tsx, src/components/portal/schedules-section.tsx, src/components/portal/live-schedule-demo.tsx
+- Root cause #1 (useSearchParams without Suspense) — the primary hydration error source — fixed
+- Root causes #2 and #3 (time-dependent rendering) — mitigated with suppressHydrationWarning
+- ESLint: 0 errors
+- No breaking changes to functionality

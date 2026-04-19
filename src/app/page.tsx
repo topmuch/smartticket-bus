@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { AppShell } from '@/components/smartticket/app-shell';
@@ -58,7 +58,11 @@ function DisplayPageWrapper() {
   );
 }
 
-export default function Home() {
+/**
+ * Inner page content that uses useSearchParams().
+ * Wrapped in <Suspense> by the exported Home component to avoid hydration errors.
+ */
+function HomeContent() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const validateSession = useAuthStore((s) => s.validateSession);
@@ -97,4 +101,16 @@ export default function Home() {
   }
 
   return <LandingPage />;
+}
+
+/**
+ * Default export wraps HomeContent in Suspense to handle useSearchParams
+ * without hydration errors.
+ */
+export default function Home() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <HomeContent />
+    </Suspense>
+  );
 }
