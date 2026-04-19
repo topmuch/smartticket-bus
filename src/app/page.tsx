@@ -5,11 +5,16 @@ import { useAuthStore } from '@/stores/auth-store';
 import { AppShell } from '@/components/smartticket/app-shell';
 import { LandingNavbar } from '@/components/portal/landing-navbar';
 import { LandingHero } from '@/components/portal/landing-hero';
+import { RoutePlanner } from '@/components/portal/route-planner';
 import { LiveScheduleDemo } from '@/components/portal/live-schedule-demo';
+import { SchedulesSection } from '@/components/portal/schedules-section';
+import { LinesSection } from '@/components/portal/lines-section';
+import { StopsSection } from '@/components/portal/stops-section';
 import { FeaturesSection } from '@/components/portal/features-section';
 import { TariffsZonesSection } from '@/components/portal/tariffs-zones-section';
 import { AppsAccessSection } from '@/components/portal/apps-access-section';
 import { LandingFooter } from '@/components/portal/landing-footer';
+import { MobileBottomNav } from '@/components/portal/mobile-bottom-nav';
 import { Bus } from 'lucide-react';
 
 function LoadingScreen() {
@@ -32,14 +37,19 @@ function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <LandingNavbar />
-      <main className="flex-1">
+      <main className="flex-1 md:pb-0 pb-16">
         <LandingHero />
+        <RoutePlanner />
         <LiveScheduleDemo />
+        <SchedulesSection />
+        <LinesSection />
+        <StopsSection />
         <FeaturesSection />
         <TariffsZonesSection />
         <AppsAccessSection onLoginClick={() => {}} />
       </main>
       <LandingFooter />
+      <MobileBottomNav />
     </div>
   );
 }
@@ -50,24 +60,31 @@ export default function Home() {
   const validateSession = useAuthStore((s) => s.validateSession);
   const setHasHydrated = useAuthStore((s) => s.setHasHydrated);
 
-  // Validate session on mount (after hydration)
+  // Validate session and handle hydration timeout
   useEffect(() => {
     if (hasHydrated && isAuthenticated) {
       validateSession();
     } else if (!hasHydrated) {
-      // If hydration hasn't fired yet via onRehydrateStorage, force it after a timeout
       const timer = setTimeout(() => {
         setHasHydrated();
-      }, 500);
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [hasHydrated, isAuthenticated, validateSession, setHasHydrated]);
 
-  // Show loading screen while auth store rehydrates
+  // Before hydration completes, check if there's a persisted session
+  // If isAuthenticated is false (no persisted session), show landing page immediately
+  // If isAuthenticated is true (persisted session found), wait for hydration to validate
   if (!hasHydrated) {
-    return <LoadingScreen />;
+    if (isAuthenticated) {
+      // There IS a persisted auth session — wait for validation
+      return <LoadingScreen />;
+    }
+    // No persisted session — show landing page immediately
+    return <LandingPage />;
   }
 
+  // After hydration
   if (isAuthenticated) {
     return <AppShell />;
   }

@@ -1286,3 +1286,28 @@ Stage Summary:
 - Dark mode compatible
 - French text throughout
 - No API calls for demo (self-contained mock data)
+
+---
+Task ID: FIX-HOMEPAGE
+Agent: Main Orchestrator
+Task: Fix homepage display issue - loading screen stuck + missing portal sections
+
+Work Log:
+- Investigated user report: "la page daccueil ne saffiche pas correctement"
+- Identified root cause 1: LoadingScreen always rendered on SSR because hasHydrated is false server-side
+- Identified root cause 2: page.tsx was missing RoutePlanner, MobileBottomNav, SchedulesSection, LinesSection, StopsSection
+- Rewrote page.tsx to:
+  - Show LandingPage immediately for unauthenticated users (no loading screen needed)
+  - Only show LoadingScreen for authenticated users during session validation
+  - Include all 10 portal sections in correct order
+  - Add mobile bottom navigation
+- Verified dev server compiles with 0 ESLint errors
+- Verified page renders correctly (118KB HTML vs 27KB before)
+- All API endpoints responding correctly (zones, stops, lines)
+
+Stage Summary:
+- Fixed: Homepage now shows landing page immediately for guests
+- Fixed: All portal sections included (Hero, Route Planner, Live Schedule, Schedules, Lines, Stops, Features, Tariffs, Apps, Footer)
+- Fixed: Mobile bottom navigation with scroll-spy active section tracking
+- ESLint: 0 errors
+- Dev server: HTTP 200, clean compilation
