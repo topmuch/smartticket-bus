@@ -1446,3 +1446,18 @@ Stage Summary:
 - Root causes #2 and #3 (time-dependent rendering) — mitigated with suppressHydrationWarning
 - ESLint: 0 errors
 - No breaking changes to functionality
+---
+Task ID: DASHBOARD-FIX
+Agent: Main Orchestrator
+Task: Fix "validControlRate.toFixed is not a function" TypeError
+
+Work Log:
+- Root cause: API route returned validControlRate as string (`.toFixed(1)` returns string), but frontend called `.toFixed(1)` on it expecting a number
+- Fixed API (src/app/api/reports/dashboard/route.ts): Changed `.toFixed(1)` to `Math.round(... * 1000) / 10` so it returns a number
+- Fixed frontend (src/components/smartticket/views/admin-dashboard.tsx): Wrapped both occurrences of `data.validControlRate.toFixed(1)` with `Number(data.validControlRate || 0).toFixed(1)` for defensive safety
+- Verified: API returns `validControlRate: 75 (type: int)`, ESLint 0 errors
+
+Stage Summary:
+- API now returns validControlRate as number (not string)
+- Frontend has defensive Number() wrapping for future safety
+- 2 files modified, no breaking changes

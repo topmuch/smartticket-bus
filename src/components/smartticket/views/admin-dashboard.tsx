@@ -145,7 +145,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
     },
     {
       title: 'Taux de validation',
-      value: data ? `${data.validControlRate.toFixed(1)}%` : '—',
+      value: data ? `${Number(data.validControlRate || 0).toFixed(1)}%` : '—',
       icon: <CheckCircle className="w-5 h-5" />,
       description: 'Contrôles valides / total',
       color: 'text-green-600 dark:text-green-400',
@@ -347,7 +347,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
                           : 'border-red-300 text-red-700 dark:border-red-700 dark:text-red-400'
                     }`}
                   >
-                    {data.validControlRate.toFixed(1)}%
+                    {Number(data.validControlRate || 0).toFixed(1)}%
                   </Badge>
                 </div>
               </div>

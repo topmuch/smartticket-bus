@@ -72,8 +72,8 @@ export const GET = withAuth(async (req: NextRequest, user: JWTPayload) => {
     });
 
     const validControlRate = totalControls > 0
-      ? ((validControls / totalControls) * 100).toFixed(1)
-      : '0';
+      ? Math.round((validControls / totalControls) * 1000) / 10
+      : 0;
 
     // Revenue by day (last 7 or 30 days)
     const daysBack = period === 'today' ? 1 : period === 'week' ? 7 : 30;
