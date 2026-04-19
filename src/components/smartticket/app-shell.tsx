@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -46,6 +47,8 @@ import QrScanner from './views/qr-scanner';
 import MyControls from './views/my-controls';
 import ControllerStats from './views/controller-stats';
 import StationManager from './views/station-manager';
+import TicketList from './views/ticket-list';
+import AuditLogs from './views/audit-logs';
 
 export type ViewId =
   | 'dashboard'
@@ -56,6 +59,7 @@ export type ViewId =
   | 'controls'
   | 'reports'
   | 'display'
+  | 'audit'
   | 'sell-ticket'
   | 'my-sales'
   | 'cash-close'
@@ -79,6 +83,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { id: 'controls', label: 'Contrôles', icon: <ScanLine className="w-4 h-4" /> },
     { id: 'reports', label: 'Rapports', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'display', label: 'Affichage Gare', icon: <Monitor className="w-4 h-4" /> },
+    { id: 'audit', label: 'Audit & Logs', icon: <FileText className="w-4 h-4" /> },
   ],
   OPERATOR: [
     { id: 'sell-ticket', label: 'Guichet', icon: <Store className="w-4 h-4" /> },
@@ -144,13 +149,15 @@ export function AppShell() {
       case 'users':
         return <UsersManagement />;
       case 'tickets':
-        return <Guichet />;
+        return <TicketList />;
       case 'controls':
         return <ControllerStats />;
       case 'reports':
         return <Reports />;
       case 'display':
         return <StationManager />;
+      case 'audit':
+        return <AuditLogs />;
       case 'sell-ticket':
         return <Guichet />;
       case 'my-sales':

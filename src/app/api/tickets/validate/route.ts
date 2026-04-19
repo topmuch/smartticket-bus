@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware';
 import { parseAndVerifyQR } from '@/lib/qr';
 
-// POST /api/tickets/validate - Validate a ticket QR code
+// POST /api/tickets/validate - Validate a ticket QR code or ticket number
 export const POST = withAuth(async (req, user) => {
   try {
     const body = await req.json();
@@ -11,19 +11,96 @@ export const POST = withAuth(async (req, user) => {
 
     if (!qrString || typeof qrString !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'QR string requise' },
+        { success: false, error: 'QR string ou numéro de ticket requis' },
         { status: 400 }
       );
     }
 
+    const trimmed = qrString.trim();
+
+    // ── TICKET NUMBER LOOKUP (TK-XXXXXXXX-XXXX) ──────────
+    // If input starts with TK-, look up ticket directly by number
+    if (/^TK-\d{8}-\d{4}$/i.test(trimmed)) {
+      const ticket = await db.ticket.findUnique({
+        where: { ticketNumber: trimmed.toUpperCase() },
+        include: {
+          soldBy: { select: { id: true, name: true, email: true } },
+          fromZone: { select: { id: true, name: true, code: true } },
+          toZone: { select: { id: true, name: true, code: true } },
+          fromStop: { select: { id: true, name: true, code: true } },
+          toStop: { select: { id: true, name: true, code: true } },
+          line: { select: { id: true, name: true, number: true } },
+          subscription: true,
+        },
+      });
+
+      if (!ticket) {
+        await db.control.create({
+          data: {
+            qrData: trimmed,
+            result: 'NOT_FOUND',
+            reason: `Ticket ${trimmed} introuvable en base`,
+            controllerId: user.userId,
+          },
+        });
+        return NextResponse.json({
+          success: true,
+          valid: false,
+          result: 'NOT_FOUND',
+          reason: `Ticket ${trimmed} introuvable en base de données`,
+        });
+      }
+
+      // Validate status
+      if (ticket.status === 'CANCELLED') {
+        await db.control.create({
+          data: { ticketId: ticket.id, qrData: trimmed, result: 'INVALID', reason: 'Ticket annulé', controllerId: user.userId },
+        });
+        return NextResponse.json({ success: true, valid: false, result: 'INVALID', reason: 'Ce ticket a été annulé', ticket });
+      }
+      if (ticket.status === 'USED' && ticket.type === 'UNIT') {
+        await db.control.create({
+          data: { ticketId: ticket.id, qrData: trimmed, result: 'ALREADY_USED', reason: 'Ticket unitaire déjà utilisé', controllerId: user.userId },
+        });
+        return NextResponse.json({ success: true, valid: false, result: 'ALREADY_USED', reason: 'Ce ticket a déjà été utilisé', ticket });
+      }
+      if (ticket.status === 'EXPIRED' || ticket.status === 'INVALID') {
+        await db.control.create({
+          data: { ticketId: ticket.id, qrData: trimmed, result: 'EXPIRED', reason: `Ticket en statut: ${ticket.status}`, controllerId: user.userId },
+        });
+        return NextResponse.json({ success: true, valid: false, result: 'EXPIRED', reason: `Ce ticket est ${ticket.status === 'EXPIRED' ? 'expiré' : 'invalide'}`, ticket });
+      }
+
+      const now = new Date();
+      if (now > ticket.validTo) {
+        await db.ticket.update({ where: { id: ticket.id }, data: { status: 'EXPIRED' } });
+        await db.control.create({
+          data: { ticketId: ticket.id, qrData: trimmed, result: 'EXPIRED', reason: `Ticket expiré le ${ticket.validTo.toISOString()}`, controllerId: user.userId },
+        });
+        return NextResponse.json({ success: true, valid: false, result: 'EXPIRED', reason: 'Ce ticket a expiré', ticket });
+      }
+
+      // Mark as used if unit ticket
+      if (ticket.type === 'UNIT') {
+        await db.ticket.update({ where: { id: ticket.id }, data: { status: 'USED' } });
+      }
+
+      await db.control.create({
+        data: { ticketId: ticket.id, qrData: trimmed, result: 'VALID', controllerId: user.userId },
+      });
+
+      return NextResponse.json({ success: true, valid: true, result: 'VALID', ticket });
+    }
+
+    // ── JWT QR CODE VALIDATION ──────────────────────────
     // Verify QR signature
-    const qrResult = parseAndVerifyQR(qrString);
+    const qrResult = parseAndVerifyQR(trimmed);
 
     if (!qrResult.valid || !qrResult.payload) {
       // Create control record for falsified/invalid QR
       await db.control.create({
         data: {
-          qrData: qrString,
+          qrData: trimmed,
           result: 'FALSIFIED',
           reason: qrResult.error || 'Signature QR invalide',
           controllerId: user.userId,

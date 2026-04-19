@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Bus,
@@ -10,11 +10,14 @@ import {
   Clock,
   Hash,
   User,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency, formatDate } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface SoldTicket {
   id: string;
@@ -40,6 +43,32 @@ interface TicketCardProps {
 
 export default function TicketCard({ ticket, onClose, onNewSale }: TicketCardProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!ticket.id) return;
+    setDownloadingPdf(true);
+    try {
+      const accessToken = useAuthStore.getState().accessToken;
+      const headers: Record<string, string> = {};
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+      
+      const response = await fetch(`/api/tickets/${ticket.id}/pdf`, { headers });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ticket_${ticket.ticketNumber}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      // Fallback to print
+      handlePrint();
+    }
+    setDownloadingPdf(false);
+  };
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -287,6 +316,19 @@ export default function TicketCard({ ticket, onClose, onNewSale }: TicketCardPro
           >
             <Printer className="w-4 h-4 mr-2" />
             Imprimer
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 h-12"
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+          >
+            {downloadingPdf ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            PDF
           </Button>
           <Button
             className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold"

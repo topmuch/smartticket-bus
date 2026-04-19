@@ -1526,3 +1526,142 @@ Stage Summary:
 - Fixed files: `src/lib/api.ts`, `src/components/smartticket/views/guichet.tsx`
 - All path-based transforms now work correctly with query strings
 - Guichet component properly fetches data in useEffect
+
+---
+Task ID: ADMIN-VIEWS-TICKETLIST-AUDITLOGS
+Agent: Main Orchestrator
+Task: Create Ticket List View and Audit Logs View for SUPERADMIN
+
+Work Log:
+- Analyzed existing view patterns (sales-history.tsx, reports.tsx, controller-stats.tsx)
+- Verified available shadcn/ui components (Select, Table, Skeleton, Badge, Card, Button, Input)
+- Reviewed api.ts exports (apiFetch, formatCurrency, formatDate, getStatusColor, getStatusLabel)
+- Created `src/components/smartticket/views/ticket-list.tsx`:
+  - Summary cards: Total Tickets, Revenus, Valides, Utilisés
+  - Filters: search by ticket number, status Select (VALID/USED/EXPIRED/CANCELLED), type Select (UNIT/SUBSCRIPTION), date range (from/to)
+  - Paginated table with 20 items per page and Previous/Next buttons
+  - Table columns: N° Ticket, Type, Passager, Trajet (zones + stops), Ligne, Prix, Paiement, Statut, Guichetier, Date
+  - Payment method labels: cash=Espèces, mobile=Mobile Money, card=Carte (also handles ESPECES/MOBILE_MONEY/CARTE)
+  - CSV export with BOM for Excel compatibility
+  - Loading skeleton state and empty state
+  - Responsive column hiding (md/lg/xl breakpoints)
+  - Fetches from /api/tickets with query params: status, type, from, to, page, limit
+- Created `src/components/smartticket/views/audit-logs.tsx`:
+  - Summary cards: Total Événements, Connexions, Ventes, Types d'actions
+  - Action distribution badges with color-coded categories
+  - Filters: search (user, action, IP, entity), action type Select dropdown (12 action types)
+  - Table columns: Date/Heure, Utilisateur (name+email), Action (color badge + icon), Entité (type + ID), Détails (JSON parsed), IP
+  - Action labels in French (22+ actions: LOGIN→Connexion, SELL_TICKET→Vente Ticket, etc.)
+  - Color-coded badges: blue for auth, green for sales, green for creates, amber for updates, red for deletes, purple for sessions, cyan for sync/export
+  - Action icons: LogIn, ShoppingCart, Eye, UserCog, FileText, Edit, Trash2, Globe, Shield
+  - Smart details formatting (JSON parsing with truncation to 80 chars)
+  - CSV export with BOM
+  - Loading skeleton state and empty state
+  - Responsive column hiding (md/lg/xl breakpoints)
+  - Fetches from /api/audit-logs?limit=50 with optional action filter
+- Ran ESLint: 0 errors
+
+Stage Summary:
+- 2 new files: ticket-list.tsx (~290 lines), audit-logs.tsx (~320 lines)
+- Both use 'use client' directive and export default
+- Both import from @/lib/api and shadcn/ui components as specified
+- All text in French, consistent with existing UI patterns
+- ESLint: 0 errors
+- Dev server running, no compilation issues
+---
+Task ID: PDF-TICKET-API
+Agent: Main Orchestrator
+Task: Create PDF Ticket Generation API Endpoint
+
+Work Log:
+- Installed jspdf v4.2.1 for PDF generation
+- Created `src/app/api/tickets/[id]/pdf/route.ts` (GET endpoint)
+- Used `withAuth` middleware with roles: SUPERADMIN, OPERATOR
+- Used `(await context.params).id` to extract ticket ID from route params
+- Fetched ticket from Prisma with relations: fromZone, toZone, fromStop, toStop, line, soldBy
+- Generated QR code as data URL using `qrcode` package (already installed)
+- Built professional thermal receipt-style PDF (80mm x 200mm) using jsPDF:
+  - Navy blue header with "SmartTicket BUS" branding and decorative green circle icon
+  - Accent green divider line
+  - Prominent ticket number in highlighted rounded rectangle
+  - Color-coded type badge (UNITÉ/ABONNEMENT) and status badge (VALIDE/UTILISÉ/ANNULÉ/EXPIRÉ)
+  - Gold line badge when ticket has a line association
+  - Route section: fromStop/fromZone → toStop/toZone with zone codes
+  - Details section in two columns: passenger, phone, vendor, price (FCFA), payment method
+  - Validity section with light green background showing date range (du/au)
+  - QR code (28mm x 28mm) centered, generated from ticket's qrToken
+  - Footer with branding, emission date, and vendor info
+  - Navy outer border with rounded corners
+  - Dashed cut line near bottom ("— Découper ici —")
+- Set response headers: Content-Type: application/pdf, Content-Disposition: attachment with ticket number
+- Error handling: 404 for ticket not found, 401 for no auth, 403 for wrong role, 500 for generation errors
+- All text in French
+- ESLint: 0 errors (verified with `bun run lint`)
+- Auth verified: 401 returned for missing/invalid token
+
+Stage Summary:
+- New file: `src/app/api/tickets/[id]/pdf/route.ts`
+- New dependency: jspdf v4.2.1
+- Route: GET /api/tickets/[id]/pdf (protected: SUPERADMIN, OPERATOR)
+- PDF format: 80mm x 200mm thermal receipt with professional styling
+- ESLint: 0 errors
+- All text in French
+
+---
+Task ID: ADMIN-DASHBOARD-REDESIGN
+Agent: Main Orchestrator
+Task: Redesign Superadmin Dashboard with Adminet-inspired layout
+
+Work Log:
+- Analyzed existing admin-dashboard.tsx (400 lines), app-shell.tsx ViewId type, and available shadcn/ui components
+- Confirmed available UI components: Sheet, Separator, Avatar, AvatarFallback, Badge, Skeleton, Card, Button
+- Rewrote src/components/smartticket/views/admin-dashboard.tsx with complete visual redesign:
+  - Dark navy sidebar (bg-slate-900) with 9 navigation items matching SUPERADMIN nav + Audit placeholder
+  - Sidebar has SmartTicket branding header, navigation with icon+label, active state highlighting (bg-white/15)
+  - Desktop sidebar: always visible (lg:flex), w-64 width
+  - Mobile sidebar: hidden by default, hamburger menu triggers Sheet (slide from left)
+  - Internal header bar with title, last-updated timestamp, role badge, notification bell, user avatar
+  - Period selector buttons (Aujourd'hui, Semaine, Mois, Année) at top of content area
+  - 4 gradient KPI cards: Revenus (red→red), Tickets Vendus (orange→amber), Taux Validation (emerald→green), Contrôles (blue→blue)
+  - Each card has white text, gradient icon background, shadow with matching color, large numbers
+  - Revenue bar chart using div heights (last 7 days), blue gradient bars with value/date labels
+  - Quick Stats panel: tickets by type, top 3 popular lines, active cash sessions count
+  - 3 SVG circular progress rings: Taux de Validation (green #16a34a), Tickets Vendus (blue #2563eb), Caisses Ouvertes (amber #d97706)
+  - Each ring shows percentage in center with animated stroke-dashoffset transition
+  - CircularProgress reusable component with configurable size, strokeWidth, color, value, max
+  - SidebarNav shared component used by both desktop sidebar and mobile Sheet
+  - Kept all data fetching logic unchanged: same API calls, DashboardData interface, auto-refresh every 30s
+  - Used apiFetch, formatCurrency from @/lib/api; useAuthStore for user info; getRoleLabel/getRoleColor for display
+  - Used lucide-react icons throughout; shadcn/ui Sheet for mobile sidebar
+  - All text in French; dark mode support via dark: prefix on header background
+
+Stage Summary:
+- Modified file: src/components/smartticket/views/admin-dashboard.tsx (complete rewrite, ~400 lines)
+- No API routes modified, no data layer changes
+- ESLint: 0 errors
+- Dev server: Ready, compilation successful
+- Export signature preserved: AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => void })
+- Layout: flex sidebar + content, fills available height within app-shell main area
+
+---
+Task ID: SCAN-FIX-PLUS
+Agent: Main Orchestrator
+Task: Fix scanner, add PDF generation, ticket history, audit logs, redesign dashboard
+
+Work Log:
+- Fixed scanner: Modified POST /api/tickets/validate to accept ticket numbers (TK-XXXXXXXX-XXXX format) in addition to JWT QR codes
+- Updated QR scanner UI: placeholder changed to "N° Ticket (TK-...) ou QR code...", demo scan now fetches real ticket from API
+- Created ticket-list.tsx: Full billetterie view with filters (status, type, date range, search), pagination, CSV export
+- Created audit-logs.tsx: Audit trail view with action filtering, color-coded badges, CSV export, 22+ French action labels
+- Created PDF ticket API: GET /api/tickets/[id]/pdf generates 80x200mm thermal receipt PDF with jsPDF + qrcode
+- Updated ticket-card.tsx: Added PDF download button alongside Print and Nouvelle Vente buttons
+- Redesigned admin-dashboard.tsx with Adminet-inspired layout: dark navy sidebar, colored gradient KPI cards, SVG circular progress indicators, revenue bar chart
+- Updated app-shell.tsx: Added 'audit' ViewId, mapped 'tickets' to TicketList (was Guichet), imported TicketList and AuditLogs, added audit nav item for SUPERADMIN
+
+Stage Summary:
+- Scanner now supports both ticket number entry AND QR code scanning
+- Billetterie shows full ticket list with filters instead of selling interface for superadmin
+- PDF tickets downloadable via button on sold ticket card
+- Audit logs view shows system activity with French action labels
+- Dashboard redesigned with dark sidebar, gradient KPI cards, circular progress rings
+- All changes: ESLint 0 errors

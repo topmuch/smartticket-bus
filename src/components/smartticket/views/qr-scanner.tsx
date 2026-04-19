@@ -448,15 +448,26 @@ export default function QrScannerView() {
     };
   }, []);
 
-  const handleDemoScan = () => {
-    const demoStrings = [
-      'SMARTTK|TK-20250101-0001|1735689600|1735700400|abc123|demo_sig',
-      'SMARTTK|EXPIRED-TICKET|1700000000|1700000001|xyz|expired_sig',
-      'INVALID_QR_STRING',
-    ];
-    const randomDemo = demoStrings[Math.floor(Math.random() * demoStrings.length)];
-    setQrInput(randomDemo);
-    handleScan(randomDemo);
+  const handleDemoScan = async () => {
+    // Fetch a real ticket from the API to demo with actual ticket number
+    try {
+      const res = await apiFetch<{ tickets?: any[] } | any[]>('/api/tickets?limit=1');
+      if (res.success && res.data) {
+        const tickets = Array.isArray(res.data) ? res.data : (res.data.tickets || []);
+        if (tickets.length > 0) {
+          const ticketNumber = tickets[0].ticketNumber;
+          if (ticketNumber) {
+            setQrInput(ticketNumber);
+            handleScan(ticketNumber);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fallback to error demo
+    }
+    setQrInput('INVALID_TICKET');
+    handleScan('INVALID_TICKET');
   };
 
   const handleSync = async () => {
@@ -736,7 +747,7 @@ export default function QrScannerView() {
                 <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   ref={inputRef}
-                  placeholder="Coller ou saisir le QR..."
+                  placeholder="N° Ticket (TK-...) ou QR code..."
                   value={qrInput}
                   onChange={(e) => setQrInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleScan(qrInput)}
