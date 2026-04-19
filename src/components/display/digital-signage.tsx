@@ -13,6 +13,7 @@ import {
   Monitor,
   ArrowRightLeft,
 } from 'lucide-react';
+import { StationQRInfo } from './station-qr-info';
 
 // ============================================================
 // Types
@@ -733,6 +734,41 @@ function SignageFooter() {
 }
 
 // ============================================================
+// 5b. Station QR Code Overlay
+// ============================================================
+/**
+ * Floating QR code block positioned at the bottom-right of the display,
+ * above the footer. Non-intrusive overlay that doesn't affect the
+ * departures table layout. Fades in on mount with a single animation.
+ *
+ * Uses pointer-events-none on the container so it doesn't interfere
+ * with kiosk mouse interactions on the underlying table.
+ */
+function StationQROverlay({
+  stationId,
+  stationSlug,
+}: {
+  stationId: string;
+  stationSlug?: string;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute bottom-14 right-4 md:right-8 z-20 animate-[fadeInRow_0.6s_ease-out_forwards]"
+      aria-hidden="false"
+    >
+      <div className="pointer-events-auto">
+        <StationQRInfo
+          stationId={stationId}
+          stationSlug={stationSlug}
+          qrSize={140}
+          compact
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // 6. Connection Lost Banner
 // ============================================================
 function ConnectionLostBanner() {
@@ -914,7 +950,7 @@ function DigitalSignageInner() {
 
   return (
     <div
-      className={`h-screen max-h-screen overflow-hidden flex flex-col bg-white ${kioskHidden ? 'kiosk-cursor-hidden' : ''}`}
+      className={`relative h-screen max-h-screen overflow-hidden flex flex-col bg-white ${kioskHidden ? 'kiosk-cursor-hidden' : ''}`}
     >
       <AnimationStyles />
 
@@ -928,6 +964,12 @@ function DigitalSignageInner() {
         departures={departures}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+      />
+
+      {/* ── QR Code Info Block (overlay bottom-right, above footer) ── */}
+      <StationQROverlay
+        stationId={isDemo ? 'demo' : (selectedStation?.id || 'unknown')}
+        stationSlug={isDemo ? 'peters' : undefined}
       />
 
       <SignageFooter />

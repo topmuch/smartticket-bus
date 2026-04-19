@@ -70,3 +70,43 @@ Stage Summary:
   - src/components/smartticket/views/cash-session.tsx (receipt printing)
   - src/components/smartticket/views/admin-dashboard.tsx (print monitoring)
 - Zero lint errors, clean build
+
+---
+Task ID: 3
+Agent: main
+Task: Integrate dynamic QR code into Digital Signage display (Gare Routière Peters)
+
+Work Log:
+- Analyzed existing DigitalSignage component layout: Header → Ticker → DeparturesTable (flex-1) → Footer
+- Verified qrcode.react v4.2.0 is installed and functional
+- Created reusable StationQRInfo component (src/components/display/station-qr-info.tsx):
+  - QRCodeSVG with level="H" (high error correction) for reliable scanning
+  - Size 140px (≥120px minimum), fgColor #000000, bgColor #FFFFFF (max contrast)
+  - Dynamic URL: {baseUrl}/gare/{slug}?station={stationId}
+  - URL resolution: baseUrl prop → NEXT_PUBLIC_SITE_URL env → window.location.origin → fallback
+  - useMemo on QR URL to prevent unnecessary re-renders
+  - Fallback UI if QR render fails (QrCode icon + "QR indisponible" + URL)
+  - Compact mode prop (hides URL text for smaller footprints)
+  - Accessibility: role="region", aria-label, aria-live="polite" on fallback
+  - No animation on QR itself (scanning requirement)
+  - Documentation comments for customizing props and .env configuration
+- Created StationQROverlay wrapper in digital-signage.tsx:
+  - Positioned as absolute bottom-right overlay above footer (z-20)
+  - pointer-events-none container so kiosk mouse events pass through
+  - pointer-events-auto on inner QR card for actual scanning
+  - Fade-in animation (fadeInRow, 0.6s) on mount only
+- Added `relative` to main container div for absolute positioning context
+- Integrated StationQROverlay between DeparturesTable and SignageFooter
+- Demo mode uses stationId="demo", stationSlug="peters"
+- Non-demo mode uses actual selectedStation.id
+- Zero modifications to ticker, clock, or departures table logic
+
+Stage Summary:
+- QR code block fully integrated into Digital Signage display
+- Position: floating overlay at bottom-right, above footer, non-intrusive
+- QR specs: level H, 140px, black on white, static (no animation)
+- Accessible: WCAG AAA contrast, aria-label, role="region", fallback with aria-live
+- Performance: useMemo on URL generation, no impact on departures table rendering
+- New file: src/components/display/station-qr-info.tsx
+- Modified: src/components/display/digital-signage.tsx (import, StationQROverlay, relative container)
+- Zero lint errors, zero TypeScript errors in modified files
