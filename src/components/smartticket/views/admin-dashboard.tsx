@@ -291,15 +291,15 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
               <div className="space-y-3">
                 {data.topLines && data.topLines.length > 0 ? (
                   data.topLines.map((line, idx) => (
-                    <div key={line.id} className="flex items-center justify-between">
+                    <div key={line.lineId || `line-${idx}`} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center justify-center w-5 h-5 rounded text-xs font-bold bg-primary/10 text-primary">
                           {idx + 1}
                         </span>
-                        <span className="text-sm truncate max-w-[120px]">{line.name}</span>
+                        <span className="text-sm truncate max-w-[120px]">{line.lineName || line.name || 'Sans ligne'}</span>
                       </div>
                       <Badge variant="secondary" className="font-mono shrink-0">
-                        {line.ticketCount}
+                        {line.tickets || line.ticketCount || 0}
                       </Badge>
                     </div>
                   ))
