@@ -255,8 +255,37 @@ export default function QrScannerView() {
 
     const trimmedQr = qrString.trim();
 
-    if (!isOnline) {
-      // Offline validation
+    // Always try online validation first — if it fails, fall back to offline
+    const tryOnlineValidation = async () => {
+      try {
+        const res = await apiFetch('/api/tickets/validate', {
+          method: 'POST',
+          body: JSON.stringify({ qrString: trimmedQr }),
+        });
+
+        // If we got a successful API response, use it
+        if (res.success !== undefined) {
+          return res;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    // Try online first
+    const onlineResult = await tryOnlineValidation();
+
+    if (onlineResult) {
+      // Online validation succeeded
+      setScanResult(onlineResult);
+      setScanning(false);
+
+      const isValid = onlineResult.data?.result === 'VALID';
+      playBeep(isValid);
+      fetchTodayStats();
+    } else if (!isOnline) {
+      // Only use offline validation if explicitly offline
       try {
         const offlineRes = await verifyQROffline(trimmedQr);
         const result = convertOfflineResult(offlineRes);
@@ -298,19 +327,32 @@ export default function QrScannerView() {
         playBeep(false);
       }
     } else {
-      // Online validation (server API)
-      const res = await apiFetch('/api/tickets/validate', {
-        method: 'POST',
-        body: JSON.stringify({ qrString: trimmedQr }),
+      // Online but API failed
+      setScanResult({
+        success: false,
+        error: 'Erreur de connexion au serveur. Veuillez réessayer.',
+        data: {
+          ticket: {
+            id: '',
+            ticketNumber: '',
+            type: 'UNIT',
+            status: 'INVALID',
+            price: 0,
+            validFrom: '',
+            validTo: '',
+            passengerName: null,
+            passengerPhone: null,
+            passengerPhoto: null,
+            fromStop: null,
+            toStop: null,
+            line: null,
+          },
+          result: 'INVALID',
+          reason: 'Erreur de connexion au serveur',
+        },
       });
-
-      setScanResult(res);
       setScanning(false);
-
-      // Check the actual validation result, not just the HTTP success
-      const isValid = res.data?.result === 'VALID';
-      playBeep(isValid);
-      fetchTodayStats();
+      playBeep(false);
     }
 
     // Auto reset after 5 seconds (allows user time to read the result)

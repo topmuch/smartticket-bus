@@ -248,6 +248,7 @@ export default function Guichet() {
         amountPaid: paymentMethod === 'cash' ? Number(amountPaid || 0) : price,
         paymentMethod,
         passengerName: passengerName || null,
+        cashSessionId: cashSession?.id || null,
       }),
     });
 

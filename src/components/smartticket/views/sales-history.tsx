@@ -43,8 +43,12 @@ interface TicketRecord {
   passengerPhone: string | null;
   fromStop: { name: string } | null;
   toStop: { name: string } | null;
+  fromZone: { name: string } | string | null;
+  toZone: { name: string } | string | null;
   soldBy: { name: string } | null;
   createdAt: string;
+  validFrom: string;
+  validTo: string;
 }
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
@@ -232,7 +236,7 @@ export default function SalesHistoryView() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <Receipt className="w-5 h-5" /> Historique des Ventes
+            <Receipt className="w-5 h-5" /> Historique des Tickets
             <Badge variant="secondary">{filteredTickets.length} résultat(s)</Badge>
           </CardTitle>
         </CardHeader>
@@ -252,13 +256,13 @@ export default function SalesHistoryView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[140px]">N° Ticket</TableHead>
+                    <TableHead className="w-[130px]">N° Ticket</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead className="hidden sm:table-cell">Passager</TableHead>
                     <TableHead>Trajet</TableHead>
                     <TableHead className="text-right">Prix</TableHead>
-                    <TableHead className="hidden md:table-cell">Paiement</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead className="hidden md:table-cell">Validité</TableHead>
                     <TableHead className="hidden lg:table-cell">Heure</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -283,7 +287,7 @@ export default function SalesHistoryView() {
                       </TableCell>
                       <TableCell>
                         <p className="text-sm font-medium">
-                          {ticket.fromStop?.name || '?'} → {ticket.toStop?.name || '?'}
+                          {ticket.fromStop?.name || (typeof ticket.fromZone === 'object' ? ticket.fromZone?.name : ticket.fromZone) || '?'} → {ticket.toStop?.name || (typeof ticket.toZone === 'object' ? ticket.toZone?.name : ticket.toZone) || '?'}
                         </p>
                       </TableCell>
                       <TableCell className="text-right font-semibold">
@@ -299,6 +303,13 @@ export default function SalesHistoryView() {
                         <Badge className={getStatusColor(ticket.status)} variant="outline">
                           {getStatusLabel(ticket.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="text-xs text-muted-foreground leading-tight">
+                          <div>{formatDate(ticket.validFrom)}</div>
+                          <div className="text-muted-foreground">→</div>
+                          <div>{formatDate(ticket.validTo)}</div>
+                        </div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">

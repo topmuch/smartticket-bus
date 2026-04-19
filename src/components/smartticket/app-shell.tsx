@@ -87,7 +87,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
   ],
   OPERATOR: [
     { id: 'sell-ticket', label: 'Guichet', icon: <Store className="w-4 h-4" /> },
-    { id: 'my-sales', label: 'Mes Ventes', icon: <Wallet className="w-4 h-4" /> },
+    { id: 'my-sales', label: 'Historique Tickets', icon: <Wallet className="w-4 h-4" /> },
     { id: 'cash-close', label: 'Clôture de Caisse', icon: <Clock className="w-4 h-4" /> },
   ],
   CONTROLLER: [
