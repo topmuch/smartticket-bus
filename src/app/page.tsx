@@ -9,6 +9,7 @@ import { HeroSection } from '@/components/computicket/hero-section';
 import { BusCarriersSection } from '@/components/computicket/bus-carriers-section';
 import { HowItWorksSection } from '@/components/computicket/how-it-works-section';
 import { HelpSection } from '@/components/computicket/help-section';
+import { SignageDemoSection } from '@/components/computicket/signage-demo-section';
 import { Footer } from '@/components/computicket/footer';
 import { DigitalSignage } from '@/components/display/digital-signage';
 import { Bus } from 'lucide-react';
@@ -41,6 +42,7 @@ function LandingPage() {
         <div id="horaires">
           <LiveScheduleDemo />
         </div>
+        <SignageDemoSection />
         <HelpSection />
       </main>
       <Footer />
