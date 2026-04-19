@@ -15,6 +15,7 @@ import {
   Wallet,
   Clock,
   LayoutDashboard,
+  Monitor,
   ChevronDown,
   Menu,
   X,
@@ -44,6 +45,7 @@ import CashSession from './views/cash-session';
 import QrScanner from './views/qr-scanner';
 import MyControls from './views/my-controls';
 import ControllerStats from './views/controller-stats';
+import StationManager from './views/station-manager';
 
 export type ViewId =
   | 'dashboard'
@@ -53,6 +55,7 @@ export type ViewId =
   | 'tickets'
   | 'controls'
   | 'reports'
+  | 'display'
   | 'sell-ticket'
   | 'my-sales'
   | 'cash-close'
@@ -75,6 +78,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { id: 'tickets', label: 'Billetterie', icon: <Ticket className="w-4 h-4" /> },
     { id: 'controls', label: 'Contrôles', icon: <ScanLine className="w-4 h-4" /> },
     { id: 'reports', label: 'Rapports', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'display', label: 'Affichage Gare', icon: <Monitor className="w-4 h-4" /> },
   ],
   OPERATOR: [
     { id: 'sell-ticket', label: 'Guichet', icon: <Store className="w-4 h-4" /> },
@@ -145,6 +149,8 @@ export function AppShell() {
         return <ControllerStats />;
       case 'reports':
         return <Reports />;
+      case 'display':
+        return <StationManager />;
       case 'sell-ticket':
         return <Guichet />;
       case 'my-sales':

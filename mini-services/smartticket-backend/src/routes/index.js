@@ -10,6 +10,7 @@ const ticketCtrl = require('../controllers/ticketController');
 const scanCtrl = require('../controllers/scanController');
 const adminCtrl = require('../controllers/adminController');
 const authCtrl = require('../controllers/authController');
+const displayCtrl = require('../controllers/displayController');
 
 // Middleware
 const { authenticate, authorize, optionalAuth } = require('../middleware/auth');
@@ -30,8 +31,33 @@ const {
   createUserSchema,
   updateUserSchema,
   createLineSchema,
-  createStopSchema
+  createStopSchema,
+  createStationSchema,
+  createDepartureSchema,
+  updateDepartureDelaySchema,
+  batchDeparturesSchema,
+  createMessageSchema
 } = require('../utils/validators');
+
+const multer = require('multer');
+const path = require('path');
+
+// Multer config for CSV uploads
+const uploadDir = path.resolve(process.cwd(), 'uploads');
+const fs = require('fs');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const upload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Seuls les fichiers CSV sont acceptés'));
+    }
+  }
+});
 
 // ============================================
 // ROUTES PUBLIQUES (sans authentification)
@@ -473,5 +499,43 @@ router.get('/subscriptions', authenticate, authorize('SUPERADMIN', 'OPERATOR'), 
 
 // --- AUDIT ---
 router.get('/audit-logs', authenticate, authorize('SUPERADMIN'), adminCtrl.getAuditLogs);
+
+// ============================================
+// DISPLAY / DIGITAL SIGNAGE - ROUTES PUBLIQUES
+// ============================================
+
+// Liste des gares (pour sélection)
+router.get('/public/stations', optionalAuth, displayCtrl.getPublicStations);
+
+// Affichage gare complet (données pour écran)
+router.get('/public/display/:stationId', optionalAuth, displayCtrl.getPublicDisplay);
+
+// ============================================
+// DISPLAY - ROUTES ADMIN (SUPERADMIN)
+// ============================================
+
+// --- GARES CRUD ---
+router.get('/admin/stations', authenticate, authorize('SUPERADMIN'), displayCtrl.getAllStations);
+router.post('/admin/stations', authenticate, authorize('SUPERADMIN'), validate(createStationSchema), displayCtrl.createStation);
+router.get('/admin/stations/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.getStationById);
+router.put('/admin/stations/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.updateStation);
+router.delete('/admin/stations/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.deleteStation);
+
+// --- DÉPARTS CRUD ---
+router.get('/admin/departures', authenticate, authorize('SUPERADMIN'), displayCtrl.getDepartures);
+router.post('/admin/departures', authenticate, authorize('SUPERADMIN'), validate(createDepartureSchema), displayCtrl.createDeparture);
+router.put('/admin/departures/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.updateDeparture);
+router.put('/admin/departures/:id/delay', authenticate, authorize('SUPERADMIN'), validate(updateDepartureDelaySchema), displayCtrl.updateDepartureDelay);
+router.delete('/admin/departures/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.deleteDeparture);
+router.post('/admin/departures/batch', authenticate, authorize('SUPERADMIN'), validate(batchDeparturesSchema), displayCtrl.batchCreateDepartures);
+
+// --- CSV IMPORT ---
+router.post('/admin/stations/:stationId/departures/import-csv', authenticate, authorize('SUPERADMIN'), upload.single('file'), displayCtrl.importCSV);
+
+// --- MESSAGES CRUD ---
+router.get('/admin/messages', authenticate, authorize('SUPERADMIN'), displayCtrl.getMessages);
+router.post('/admin/messages', authenticate, authorize('SUPERADMIN'), validate(createMessageSchema), displayCtrl.createMessage);
+router.put('/admin/messages/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.updateMessage);
+router.delete('/admin/messages/:id', authenticate, authorize('SUPERADMIN'), displayCtrl.deleteMessage);
 
 module.exports = router;

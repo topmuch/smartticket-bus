@@ -216,6 +216,48 @@ function createSchema() {
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  // ============================================
+  // AFFICHAGE GARE (Digital Signage) - MODULE ADD-ON
+  // ============================================
+
+  db.run(`CREATE TABLE IF NOT EXISTS stations (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    city        TEXT,
+    timezone    TEXT DEFAULT 'Africa/Dakar',
+    slug        TEXT UNIQUE,
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS departures (
+    id              TEXT PRIMARY KEY,
+    station_id      TEXT NOT NULL REFERENCES stations(id),
+    line_id         TEXT NOT NULL REFERENCES lines(id),
+    scheduled_time  TEXT NOT NULL,
+    platform        TEXT,
+    schedule_type   TEXT NOT NULL DEFAULT 'departure' CHECK(schedule_type IN ('departure', 'arrival')),
+    status          TEXT NOT NULL DEFAULT 'on-time' CHECK(status IN ('on-time', 'delayed', 'cancelled', 'departed')),
+    delay_minutes   INTEGER NOT NULL DEFAULT 0,
+    day_of_week     INTEGER CHECK(day_of_week BETWEEN 0 AND 6),
+    destination     TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS display_messages (
+    id          TEXT PRIMARY KEY,
+    station_id  TEXT REFERENCES stations(id),
+    message     TEXT NOT NULL,
+    priority    TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('urgent', 'normal', 'info')),
+    start_date  TEXT,
+    end_date    TEXT,
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   // Index pour les performances
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_tickets_seller ON tickets(seller_id)',
@@ -231,6 +273,10 @@ function createSchema() {
     'CREATE INDEX IF NOT EXISTS idx_line_stops_line ON line_stops(line_id)',
     'CREATE INDEX IF NOT EXISTS idx_schedules_line ON schedules(line_id)',
     'CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_departures_station ON departures(station_id)',
+    'CREATE INDEX IF NOT EXISTS idx_departures_line ON departures(line_id)',
+    'CREATE INDEX IF NOT EXISTS idx_departures_lookup ON departures(station_id, day_of_week, scheduled_time)',
+    'CREATE INDEX IF NOT EXISTS idx_display_messages_station ON display_messages(station_id)',
   ];
 
   for (const idx of indexes) {

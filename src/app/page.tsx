@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { AppShell } from '@/components/smartticket/app-shell';
 import { LandingNavbar } from '@/components/portal/landing-navbar';
@@ -15,6 +16,7 @@ import { TariffsZonesSection } from '@/components/portal/tariffs-zones-section';
 import { AppsAccessSection } from '@/components/portal/apps-access-section';
 import { LandingFooter } from '@/components/portal/landing-footer';
 import { MobileBottomNav } from '@/components/portal/mobile-bottom-nav';
+import { DigitalSignage } from '@/components/display/digital-signage';
 import { Bus } from 'lucide-react';
 
 function LoadingScreen() {
@@ -54,11 +56,21 @@ function LandingPage() {
   );
 }
 
+function DisplayPageWrapper() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <DigitalSignage />
+    </Suspense>
+  );
+}
+
 export default function Home() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const validateSession = useAuthStore((s) => s.validateSession);
   const setHasHydrated = useAuthStore((s) => s.setHasHydrated);
+  const searchParams = useSearchParams();
+  const displayStation = searchParams.get('display');
 
   // Validate session and handle hydration timeout
   useEffect(() => {
@@ -72,15 +84,16 @@ export default function Home() {
     }
   }, [hasHydrated, isAuthenticated, validateSession, setHasHydrated]);
 
+  // Digital Signage mode: /?display=stationId bypasses normal layout
+  if (displayStation) {
+    return <DisplayPageWrapper />;
+  }
+
   // Before hydration completes, check if there's a persisted session
-  // If isAuthenticated is false (no persisted session), show landing page immediately
-  // If isAuthenticated is true (persisted session found), wait for hydration to validate
   if (!hasHydrated) {
     if (isAuthenticated) {
-      // There IS a persisted auth session — wait for validation
       return <LoadingScreen />;
     }
-    // No persisted session — show landing page immediately
     return <LandingPage />;
   }
 

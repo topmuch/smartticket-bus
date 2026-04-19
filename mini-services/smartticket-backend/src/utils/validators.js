@@ -179,6 +179,44 @@ function validateQuery(schema) {
   };
 }
 
+// ============================================
+// DISPLAY / DIGITAL SIGNAGE SCHEMAS
+// ============================================
+
+const createStationSchema = z.object({
+  name: z.string().min(2, 'Nom requis (min 2 caractères)').max(100, 'Nom trop long'),
+  city: z.string().max(50).optional(),
+  timezone: z.string().max(30).optional(),
+  slug: z.string().max(100).optional()
+});
+
+const createDepartureSchema = z.object({
+  station_id: z.string().min(1, 'Gare requise'),
+  line_id: z.string().min(1, 'Ligne requise'),
+  scheduled_time: z.string().regex(/^\d{1,2}:\d{2}$/, 'Format invalide (HH:MM)'),
+  platform: z.string().max(10).optional(),
+  schedule_type: z.enum(['departure', 'arrival']).optional(),
+  day_of_week: z.number().int().min(0).max(6).optional().nullable(),
+  destination: z.string().max(100).optional()
+});
+
+const updateDepartureDelaySchema = z.object({
+  delay_minutes: z.number().int().min(0, 'Retard positif').max(300, 'Max 300 min').optional(),
+  status: z.enum(['on-time', 'delayed', 'cancelled', 'departed']).optional()
+});
+
+const batchDeparturesSchema = z.object({
+  departures: z.array(createDepartureSchema).max(500, 'Maximum 500 départs')
+});
+
+const createMessageSchema = z.object({
+  station_id: z.string().optional(),
+  message: z.string().min(1, 'Message requis').max(500, 'Message trop long'),
+  priority: z.enum(['urgent', 'normal', 'info']).optional(),
+  start_date: z.string().optional(),
+  end_date: z.string().optional()
+});
+
 module.exports = {
   // Schemas
   loginSchema,
@@ -197,6 +235,11 @@ module.exports = {
   updateUserSchema,
   createLineSchema,
   createStopSchema,
+  createStationSchema,
+  createDepartureSchema,
+  updateDepartureDelaySchema,
+  batchDeparturesSchema,
+  createMessageSchema,
   // Middleware
   validate,
   validateQuery
