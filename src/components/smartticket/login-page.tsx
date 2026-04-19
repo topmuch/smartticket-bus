@@ -120,7 +120,7 @@ export function LoginPage() {
               <div className="grid grid-cols-1 gap-2">
                 <button
                   type="button"
-                  onClick={() => fillCredentials('admin@smartticket.bus', 'Admin@123')}
+                  onClick={() => fillCredentials('admin@smartticket.bus', 'admin123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold shrink-0">
@@ -133,7 +133,7 @@ export function LoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => fillCredentials('guichet1@smartticket.bus', 'Oper@123')}
+                  onClick={() => fillCredentials('guichet1@smartticket.bus', 'admin123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-bold shrink-0">
@@ -146,7 +146,7 @@ export function LoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => fillCredentials('control1@smartticket.bus', 'Control@123')}
+                  onClick={() => fillCredentials('control1@smartticket.bus', 'admin123')}
                   className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0">

@@ -126,7 +126,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             <button
               type="button"
               onClick={() =>
-                fillCredentials('admin@smartticket.bus', 'Admin@123')
+                fillCredentials('admin@smartticket.bus', 'admin123')
               }
               className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
             >
@@ -145,7 +145,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             <button
               type="button"
               onClick={() =>
-                fillCredentials('guichet1@smartticket.bus', 'Oper@123')
+                fillCredentials('guichet1@smartticket.bus', 'admin123')
               }
               className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
             >
@@ -164,7 +164,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             <button
               type="button"
               onClick={() =>
-                fillCredentials('control1@smartticket.bus', 'Control@123')
+                fillCredentials('control1@smartticket.bus', 'admin123')
               }
               className="flex items-center gap-2 rounded-lg bg-muted/50 hover:bg-muted p-2.5 text-left transition-colors text-sm"
             >
