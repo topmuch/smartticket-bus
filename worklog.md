@@ -1224,3 +1224,65 @@ Stage Summary:
 - Lines now display descriptions in the public portal
 - Database fully seeded with descriptions
 - All fixes verified: lint clean, dev server starts, APIs return data
+
+---
+Task ID: 2
+Agent: Subagent
+Task: Create LiveScheduleDemo component with mock schedule data
+
+Work Log:
+- Created src/data/mock-schedule.ts with 8 mock departures across 4 lines
+- Created src/components/portal/live-schedule-demo.tsx with real-time demo
+- Features: line filtering tabs, live clock, auto-refresh every 30s, Framer Motion animations, responsive design
+
+Stage Summary:
+- 2 new files created
+- Self-contained demo, no API calls
+- Mobile-first responsive (table on desktop, cards on mobile)
+- Status badges: Terminé (gray), Embarquement (green pulse), Dans X min (blue)
+
+---
+Task ID: 3
+Agent: Subagent
+Task: Build all landing page sections (Navbar, Hero, Features, Tariffs, Apps, Footer)
+
+Work Log:
+- Created landing-navbar.tsx: sticky header with scroll effect, mobile overlay, staff dropdown, login integration
+- Created landing-hero.tsx: full-height hero with gradient, search widget, live indicators
+- Created features-section.tsx: 3 feature cards with Framer Motion animations
+- Created tariffs-zones-section.tsx: 5 zone cards with pricing + how-it-works steps
+- Created apps-access-section.tsx: 3 B2B access cards (Controller, Ticket, Admin)
+- Created landing-footer.tsx: 3-column dark footer with contact info
+
+Stage Summary:
+- 6 new component files created
+- All components use 'use client', Framer Motion, Tailwind CSS, shadcn/ui
+- Mobile-first responsive design
+- No API calls, all self-contained demo content
+
+---
+Task ID: LANDING-PAGE-REDESIGN
+Agent: Main Orchestrator
+Task: Complete redesign of SmartTicket Bus homepage (landing page)
+
+Work Log:
+- Created src/data/mock-schedule.ts: 8 mock departures across 4 lines (L10, L24, L05, L08) with status badges
+- Created src/components/portal/live-schedule-demo.tsx: self-contained real-time demo with line filtering, live clock, auto-refresh, Framer Motion animations
+- Created src/components/portal/landing-navbar.tsx: sticky header with transparent-to-white scroll transition, desktop nav + staff dropdown, mobile full-screen overlay, auth-aware buttons
+- Created src/components/portal/landing-hero.tsx: 85vh hero with dark navy gradient, animated floating orbs, grid pattern, search widget, live network indicators
+- Created src/components/portal/features-section.tsx: 3 feature cards (Billetterie Zonale, Contrôle Mobile, Gestion Centralisée) with staggered Framer Motion entrance
+- Created src/components/portal/tariffs-zones-section.tsx: 5 zone pricing cards (01-05) with colored borders + "Comment ça marche?" 3-step info card
+- Created src/components/portal/apps-access-section.tsx: 3 B2B access cards (Contrôleur, Guichet, Administration) with hover effects
+- Created src/components/portal/landing-footer.tsx: dark navy footer with 3 columns (brand, navigation, contact) + copyright bar
+- Updated src/app/page.tsx: integrated all 7 new sections into landing page, maintained auth hydration guard
+- All components use 'use client', Framer Motion, Tailwind CSS, shadcn/ui, Lucide React icons
+- ESLint: 0 errors
+
+Stage Summary:
+- 8 new files created (1 data + 7 components)
+- 1 file modified (page.tsx)
+- Complete landing page with: Hero → Live Demo → Features → Tarifs → Apps Access → Footer
+- Mobile-first responsive design throughout
+- Dark mode compatible
+- French text throughout
+- No API calls for demo (self-contained mock data)

@@ -1,42 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { AppShell } from '@/components/smartticket/app-shell';
-import { PortalHeader } from '@/components/portal/portal-header';
-import { HeroSection } from '@/components/portal/hero-section';
-import { LinesSection } from '@/components/portal/lines-section';
-import { StopsSection } from '@/components/portal/stops-section';
-import { SchedulesSection } from '@/components/portal/schedules-section';
-import { FaresSection } from '@/components/portal/fares-section';
-import { RoutePlanner } from '@/components/portal/route-planner';
-import { LoginDialog } from '@/components/portal/login-dialog';
-import { PortalFooter } from '@/components/portal/portal-footer';
-import { MobileBottomNav } from '@/components/portal/mobile-bottom-nav';
+import { LandingNavbar } from '@/components/portal/landing-navbar';
+import { LandingHero } from '@/components/portal/landing-hero';
+import { LiveScheduleDemo } from '@/components/portal/live-schedule-demo';
+import { FeaturesSection } from '@/components/portal/features-section';
+import { TariffsZonesSection } from '@/components/portal/tariffs-zones-section';
+import { AppsAccessSection } from '@/components/portal/apps-access-section';
+import { LandingFooter } from '@/components/portal/landing-footer';
 import { Bus } from 'lucide-react';
-
-function PublicPortal() {
-  const [loginOpen, setLoginOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <PortalHeader onLoginClick={() => setLoginOpen(true)} />
-      <main className="flex-1">
-        <HeroSection />
-        <RoutePlanner />
-        <LinesSection />
-        <StopsSection />
-        <SchedulesSection />
-        <FaresSection />
-      </main>
-      <div className="pb-20 md:pb-0">
-        <PortalFooter />
-      </div>
-      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
-      <MobileBottomNav />
-    </div>
-  );
-}
 
 function LoadingScreen() {
   return (
@@ -50,6 +24,22 @@ function LoadingScreen() {
           <p className="mt-1 text-sm text-muted-foreground">Chargement...</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LandingPage() {
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <LandingNavbar />
+      <main className="flex-1">
+        <LandingHero />
+        <LiveScheduleDemo />
+        <FeaturesSection />
+        <TariffsZonesSection />
+        <AppsAccessSection onLoginClick={() => {}} />
+      </main>
+      <LandingFooter />
     </div>
   );
 }
@@ -82,5 +72,5 @@ export default function Home() {
     return <AppShell />;
   }
 
-  return <PublicPortal />;
+  return <LandingPage />;
 }
