@@ -241,6 +241,7 @@ export default function Guichet() {
     const res = await apiFetch('/api/tickets', {
       method: 'POST',
       body: JSON.stringify({
+        type: 'UNIT',
         fromZoneId,
         toZoneId,
         price,
