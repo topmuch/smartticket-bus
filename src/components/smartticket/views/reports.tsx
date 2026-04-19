@@ -36,7 +36,10 @@ interface ControlsStats {
   invalidCount: number;
   validRate: string | number;
   fraudRate: string | number;
-  controlsByResult: { result: string; count: number }[];
+  fraudCount: number;
+  breakdown: Record<string, number>;
+  controlsByController: { controllerId: string; controllerName: string; totalControls: number }[];
+  controlsByLine: { lineId: string; lineName: string; lineNumber: string; totalControls: number }[];
 }
 
 // ── Period Options ─────────────────────────────────────
@@ -130,6 +133,13 @@ export default function ReportsView() {
     FALSIFIED: 'Falsifié',
     NOT_FOUND: 'Non trouvé',
   };
+
+  // Convert breakdown object into array for rendering
+  const controlsByResult = controls?.breakdown
+    ? Object.entries(controls.breakdown)
+        .map(([result, count]) => ({ result, count }))
+        .sort((a, b) => b.count - a.count)
+    : [];
 
   const totalControlsCount = controls?.totalControls ?? 0;
 
@@ -276,9 +286,9 @@ export default function ReportsView() {
                 </div>
               </CardHeader>
               <CardContent>
-                {controls && controls.controlsByResult && controls.controlsByResult.length > 0 ? (
+                {controlsByResult.length > 0 ? (
                   <div className="space-y-3">
-                    {controls.controlsByResult.map((item) => {
+                    {controlsByResult.map((item) => {
                       const pct = totalControlsCount > 0 ? (item.count / totalControlsCount) * 100 : 0;
                       const barColor =
                         item.result === 'VALID'

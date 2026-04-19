@@ -1490,3 +1490,20 @@ Stage Summary:
 - 7 fichiers modifiés: controller-stats.tsx, reports.tsx, admin-dashboard.tsx, guichet.tsx, controls/stats/route.ts, reports/controls/route.ts
 - ESLint: 0 erreurs
 - Dev server: HTTP 200
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix billeterie and controle rapport errors
+
+Work Log:
+- Diagnosed 4 bugs across billetterie and controle report pages
+- Bug 1: Reports `ControlsStats` interface expected `controlsByResult` array but API returns `breakdown` object → Fixed in reports.tsx by converting breakdown to array
+- Bug 2: `/api/reports/controls` ignored `period` query parameter → Added `getPeriodRange()` function and period support to the controls API
+- Bug 3: Guichet recent tickets showed `[object Object]` for zone names because `fromZone`/`toZone` are Prisma relation objects, not strings → Added client-side transform in `api.ts` to flatten zone objects to name strings
+- Bug 4: ControllerStats read `control.createdAt` but API returns `scannedAt` → Added client-side transform in `api.ts` to map `scannedAt` to `createdAt`
+- Ran lint — 0 errors
+
+Stage Summary:
+- Fixed files: `src/components/smartticket/views/reports.tsx`, `src/app/api/reports/controls/route.ts`, `src/lib/api.ts`
+- All 4 bugs resolved: controls breakdown rendering, period filtering, zone name display, control timestamp display

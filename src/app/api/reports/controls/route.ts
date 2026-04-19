@@ -3,24 +3,62 @@ import { db } from '@/lib/db';
 import { withAuth, JWTPayload } from '@/lib/middleware';
 import { ControlResult } from '@prisma/client';
 
+function getPeriodRange(period: string) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (period) {
+    case 'today':
+      return { start: today, end: new Date(today.getTime() + 86400000 - 1) };
+    case 'week': {
+      const start = new Date(today);
+      start.setDate(start.getDate() - start.getDay() + 1); // Monday
+      start.setHours(0, 0, 0, 0);
+      return { start, end: now };
+    }
+    case 'month': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start, end: now };
+    }
+    case 'year': {
+      const start = new Date(now.getFullYear(), 0, 1);
+      return { start, end: now };
+    }
+    default: {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 30);
+      return { start, end: now };
+    }
+  }
+}
+
 // GET /api/reports/controls - Controls report
 export const GET = withAuth(async (req: NextRequest, user: JWTPayload) => {
   try {
     const searchParams = req.nextUrl.searchParams;
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const period = searchParams.get('period');
     const controllerId = searchParams.get('controllerId');
     const result = searchParams.get('result') as ControlResult | null;
 
     const where: Record<string, unknown> = {};
 
-    if (from || to) {
+    // Support both explicit from/to and period shortcuts
+    let effectiveFrom = from;
+    let effectiveTo = to;
+    if ((!effectiveFrom && !effectiveTo) && period) {
+      const { start, end } = getPeriodRange(period);
+      effectiveFrom = start.toISOString();
+      effectiveTo = end.toISOString();
+    }
+
+    if (effectiveFrom || effectiveTo) {
       where.scannedAt = {};
-      if (from) {
-        (where.scannedAt as Record<string, unknown>).gte = new Date(from);
+      if (effectiveFrom) {
+        (where.scannedAt as Record<string, unknown>).gte = new Date(effectiveFrom);
       }
-      if (to) {
-        (where.scannedAt as Record<string, unknown>).lte = new Date(to + 'T23:59:59.999Z');
+      if (effectiveTo) {
+        (where.scannedAt as Record<string, unknown>).lte = new Date(effectiveTo);
       }
     }
 

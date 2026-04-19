@@ -161,6 +161,29 @@ function transformResponse(path: string, data: any): any {
     }));
   }
 
+  // ── GET /api/tickets (list) ────────────────────────────────
+  // Local route returns { tickets: [...], pagination: {...} }.
+  // Each ticket has fromZone/toZone as objects and uses soldAt.
+  // Guichet TicketRecord expects fromZone/toZone as strings and createdAt.
+  if (path === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.tickets) {
+    data.data.tickets = data.data.tickets.map((t: any) => ({
+      ...t,
+      fromZone: typeof t.fromZone === 'object' && t.fromZone ? t.fromZone.name : (t.fromZone || ''),
+      toZone: typeof t.toZone === 'object' && t.toZone ? t.toZone.name : (t.toZone || ''),
+      createdAt: t.soldAt || t.createdAt || '',
+    }));
+  }
+
+  // ── GET /api/controls (list) ──────────────────────────────
+  // Local route returns controls with scannedAt.
+  // ControllerStats ControlRecord expects createdAt.
+  if (path.includes('/api/controls') && data.data && !Array.isArray(data.data) && data.data.controls) {
+    data.data.controls = data.data.controls.map((c: any) => ({
+      ...c,
+      createdAt: c.scannedAt || c.createdAt || '',
+    }));
+  }
+
   // ── POST /api/cash-sessions (open) & PUT /api/cash-sessions/close (close) ──
   // Single cash session object response — add closingBalance alias
   if (
