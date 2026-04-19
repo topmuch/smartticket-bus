@@ -154,11 +154,12 @@ export default function Guichet() {
   const [ticketsFetched, setTicketsFetched] = useState(false);
   if (!ticketsFetched) {
     setTicketsFetched(true);
-    apiFetch<TicketRecord[]>('/api/tickets?limit=5').then((res) => {
+    apiFetch<{ tickets?: TicketRecord[]; pagination?: Record<string, unknown> }>('/api/tickets?limit=5').then((res) => {
       if (res.success && res.data) {
-        setRecentTickets(res.data);
-        const total = res.data.reduce((sum, t) => sum + t.price, 0);
-        setTodayStats({ count: res.data.length, total });
+        const tickets = Array.isArray(res.data) ? res.data : (res.data.tickets || []);
+        setRecentTickets(tickets);
+        const total = tickets.reduce((sum, t) => sum + (t.price || 0), 0);
+        setTodayStats({ count: tickets.length, total });
       }
     });
   }
@@ -219,11 +220,12 @@ export default function Guichet() {
   };
 
   const refreshTickets = async () => {
-    const res = await apiFetch<TicketRecord[]>('/api/tickets?limit=5');
+    const res = await apiFetch<{ tickets?: TicketRecord[]; pagination?: Record<string, unknown> }>('/api/tickets?limit=5');
     if (res.success && res.data) {
-      setRecentTickets(res.data);
-      const total = res.data.reduce((sum, t) => sum + t.price, 0);
-      setTodayStats({ count: res.data.length, total });
+      const tickets = Array.isArray(res.data) ? res.data : (res.data.tickets || []);
+      setRecentTickets(tickets);
+      const total = tickets.reduce((sum, t) => sum + (t.price || 0), 0);
+      setTodayStats({ count: tickets.length, total });
     }
   };
 
