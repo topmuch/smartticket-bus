@@ -538,7 +538,7 @@ export default function StationManager() {
       if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
       const res = await fetch(
-        `/api/v1/admin/stations/${csvStationId}/departures/import-csv?XTransformPort=3001`,
+        `/api/v1/admin/stations/${csvStationId}/departures/import-csv`,
         { method: 'POST', headers, body: formData }
       );
       const data = await res.json();

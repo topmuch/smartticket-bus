@@ -144,7 +144,7 @@ export function AppShell() {
       case 'users':
         return <UsersManagement />;
       case 'tickets':
-        return <SalesHistory />;
+        return <Guichet />;
       case 'controls':
         return <ControllerStats />;
       case 'reports':

@@ -1,186 +1,48 @@
 import { useAuthStore } from '@/stores/auth-store';
 
 // ============================================
-// Backend URL Mapping
-// Public endpoints → Next.js API routes (local)
-// Authenticated/admin endpoints → Express backend (port 3001)
+// Local URL Routing
+// ALL endpoints are served by Next.js API routes.
+// No Express backend exists — no port transformation needed.
 // ============================================
-const BACKEND_PORT = 3001;
 
 /**
- * Check if a resolved path is a public endpoint served by Next.js API routes.
- * These endpoints do NOT need XTransformPort.
+ * Convert a frontend API path to a local Next.js API route URL.
+ * All endpoints are local — no XTransformPort is ever added.
  */
-function isLocalPublicEndpoint(resolvedPath: string, method?: string): boolean {
-  const pathOnly = resolvedPath.split('?')[0];
-
-  // Public portal endpoints
-  if (pathOnly === '/api/v1/public/info') return true;
-  if (pathOnly === '/api/v1/public/fares') return true;
-  if (pathOnly === '/api/v1/public/passages') return true;
-
-  // Zones (GET only — list for portal filter)
-  if (pathOnly === '/api/v1/zones' && (!method || method === 'GET')) return true;
-
-  // Lines list and detail (GET only — portal browsing)
-  if (pathOnly === '/api/v1/lines' && (!method || method === 'GET')) return true;
-  if (/^\/api\/v1\/lines\/[\w-]+$/.test(pathOnly) && (!method || method === 'GET')) return true;
-
-  // Stops (GET only — portal browsing)
-  if (pathOnly === '/api/v1/stops' && (!method || method === 'GET')) return true;
-
-  // Pricing calculate (POST — portal route planner)
-  if (pathOnly === '/api/v1/pricing/calculate') return true;
-
-  return false;
-}
-
-/**
- * Convert a frontend API path to the Express backend URL.
- * Handles path mapping and query param transformation.
- * Public endpoints are served by Next.js locally (no port transformation).
- */
-export function toBackendUrl(
-  path: string,
-  options?: { method?: string; body?: any }
-): string {
-  // Auth endpoints: /api/auth/* → /api/auth/* (same structure on backend)
+export function toBackendUrl(path: string): string {
+  // Auth endpoints: return as-is (local Next.js auth routes)
   if (path.startsWith('/api/auth/')) {
-    const separator = path.includes('?') ? '&' : '?';
-    return `${path}${separator}XTransformPort=${BACKEND_PORT}`;
+    return path;
   }
 
-  // Public info: /api/public/info → /api/v1/public/info (local)
+  // Public info: /api/public/info → /api/v1/public/info (local route)
   if (path === '/api/public/info') {
     return '/api/v1/public/info';
   }
 
-  // Map /api/fares/* to /api/v1/tariffs/*
-  if (path.includes('/api/fares')) {
-    path = path.replace('/api/fares', '/api/v1/tariffs');
-  }
-  // Map /api/tickets POST (sell) to /api/v1/sell
-  else if (path === '/api/tickets' && options?.method === 'POST') {
-    path = '/api/v1/sell';
-  }
-  // Map /api/tickets/validate POST (scan) to /api/v1/scan
-  else if (path === '/api/tickets/validate' && options?.method === 'POST') {
-    path = '/api/v1/scan';
-  }
-  // Map /api/tickets/generate-qr POST → handled in view (GET /api/v1/tickets/:id/qr)
-  else if (path === '/api/tickets/generate-qr') {
-    path = path; // kept as-is, view handles the conversion
-  }
-  // Map POST /api/cash-sessions (open session) → /api/v1/cash-sessions/open
-  else if (path === '/api/cash-sessions' && options?.method === 'POST') {
-    path = '/api/v1/cash-sessions/open';
-  }
-  // Map PUT /api/cash-sessions/close → /api/v1/cash-sessions/close
-  else if (path === '/api/cash-sessions/close' && options?.method === 'PUT') {
-    path = '/api/v1/cash-sessions/close';
-  }
-  // Generic /api/* → /api/v1/* mapping
-  else if (!path.startsWith('/api/v1/')) {
-    path = path.replace('/api/', '/api/v1/');
-  }
-
-  // Check if this is a public endpoint served by Next.js locally
-  if (isLocalPublicEndpoint(path, options?.method)) {
-    return path; // No XTransformPort needed
-  }
-
-  // All other endpoints go to Express backend
-  const separator = path.includes('?') ? '&' : '?';
-  return `${path}${separator}XTransformPort=${BACKEND_PORT}`;
+  // All other endpoints: return as-is (local routing)
+  return path;
 }
+
+// ============================================
+// Request / Response transformation
+// Since all routes are local and use camelCase Prisma data,
+// request bodies and most responses pass through unchanged.
+// Only specific format mismatches are normalized below.
+// ============================================
 
 /**
- * Convert camelCase keys to snake_case recursively.
+ * Transform request body for a given endpoint.
+ * Since all routes are local and accept camelCase, return body as-is.
  */
-function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
-}
-
-function normalizeRequestKeys(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(normalizeRequestKeys);
-  }
-  if (obj && typeof obj === 'object') {
-    const result: any = {};
-    for (const key of Object.keys(obj)) {
-      const snakeKey = camelToSnake(key);
-      result[snakeKey] = normalizeRequestKeys(obj[key]);
-    }
-    return result;
-  }
-  return obj;
-}
-
-/**
- * Transform request body from camelCase (frontend) to snake_case (Express backend)
- * for specific endpoints.
- */
-function transformRequestBody(path: string, body: any): any {
-  if (!body) return body;
-
-  // Pricing/calculate: transform camelCase to snake_case
-  if (path.includes('/pricing/calculate')) {
-    const transformed: any = {};
-    if (body.fromZoneId) transformed.from_zone_id = body.fromZoneId;
-    if (body.toZoneId) transformed.to_zone_id = body.toZoneId;
-    return transformed;
-  }
-
-  // Lines, Stops, Schedules CRUD: general camelCase → snake_case conversion
-  if (path.includes('/lines') || path.includes('/stops') || path.includes('/schedules')) {
-    if (body && typeof body === 'object' && !body.controls && !body.from_zone_id) {
-      return normalizeRequestKeys(body);
-    }
-  }
-
-  // Scan endpoint: qrString → qr_string
-  if (path.includes('/api/v1/scan') || path.includes('/api/tickets/validate')) {
-    const { qrString, ...rest } = body;
-    if (qrString) return { qr_string: qrString, ...rest };
-  }
-
-  // Controls sync: transform frontend field names to Express backend fields
-  if (path.includes('/controls/sync') && Array.isArray(body?.controls)) {
-    const transformedControls = body.controls.map((ctrl: any) => ({
-      ticket_id: ctrl.ticketId || ctrl.ticket_id,
-      qr_data: ctrl.qrString || ctrl.qr_data,
-      result: ctrl.result,
-      reason: ctrl.reason,
-      latitude: ctrl.latitude,
-      longitude: ctrl.longitude,
-    }));
-    return { controls: transformedControls };
-  }
-
-  // Sell endpoint: transform camelCase to snake_case
-  if (path.includes('/api/v1/sell') || (path.includes('/api/tickets') && body.fromStopId)) {
-    const transformed: any = {};
-    if (body.fromStopId) transformed.from_zone_id = body.fromStopId;
-    if (body.toStopId) transformed.to_zone_id = body.toStopId;
-    if (body.price) transformed.price = body.price;
-    if (body.amountPaid) transformed.amount_paid = body.amountPaid;
-    if (body.paymentMethod) transformed.payment_method = body.paymentMethod;
-    if (body.passengerName) transformed.passenger_name = body.passengerName;
-    if (body.passengerPhone) transformed.passenger_phone = body.passengerPhone;
-    if (body.passengerPhoto) transformed.passenger_photo_url = body.passengerPhoto;
-    if (body.lineId) transformed.line_id = body.lineId;
-    if (body.fareId) transformed.fare_id = body.fareId;
-    if (body.durationDays) transformed.duration_days = body.durationDays;
-    if (body.notes) transformed.notes = body.notes;
-    return transformed;
-  }
-
+function transformRequestBody(_path: string, body: any): any {
   return body;
 }
 
 /**
  * Convert snake_case keys to camelCase recursively.
- * Handles common database field patterns like is_active, created_at, etc.
+ * Used only for the /api/v1/public/info endpoint which manually returns snake_case.
  */
 function snakeToCamel(str: string): string {
   return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -202,189 +64,80 @@ function normalizeKeys(obj: any): any {
 }
 
 /**
- * Normalize Express backend response to match what frontend components expect.
+ * Normalize local API response to match what frontend components expect.
+ * Most responses pass through unchanged since local routes return camelCase Prisma data.
+ * Only specific format mismatches are handled here.
  */
 function transformResponse(path: string, data: any): any {
   if (!data || !data.success) return data;
 
-  // Public info: normalize snake_case to camelCase
+  // ── Public info ──────────────────────────────────────────────
+  // /api/v1/public/info returns snake_case keys manually (not Prisma-generated)
   if (path.includes('/public/info') && data.data && !Array.isArray(data.data)) {
     data.data = normalizeKeys(data.data);
   }
 
-  // Tariffs/fares → normalize snake_case fields to camelCase for frontend components
-  if ((path.includes('/tariffs') || path.includes('/fares')) && Array.isArray(data.data)) {
-    data.data = data.data.map((t: any) => ({
-      ...t,
-      fromZoneId: t.from_zone_id,
-      toZoneId: t.to_zone_id,
-      fromZone: {
-        id: t.from_zone_id,
-        name: t.from_zone_name,
-        code: t.from_zone_code,
-        color: t.from_zone_color || '#6b7280',
-      },
-      toZone: {
-        id: t.to_zone_id,
-        name: t.to_zone_name,
-        code: t.to_zone_code,
-        color: t.to_zone_color || '#6b7280',
-      },
-      isActive: t.is_active === 1 || t.is_active === true,
-    }));
-  }
-
-  // Sell ticket response: normalize to frontend-expected format
-  if (path.includes('/api/v1/sell')) {
+  // ── POST /api/tickets (sell ticket) ──────────────────────────
+  // Local route returns full ticket with nested relations, qrString, qrToken.
+  // Guichet/TicketCard expects SoldTicket with flat fields.
+  if (path === '/api/tickets' && data.data && !Array.isArray(data.data) && data.data.qrToken) {
     const d = data.data;
-    if (d) {
-      data.data = {
-        id: d.ticket_id,
-        ticketNumber: d.ticket_number,
-        qrCode: d.qr_code,
-        price: d.price,
-        amountPaid: d.amount_paid,
-        changeGiven: d.change,
-        validFrom: d.valid_from,
-        validTo: d.valid_until,
-        passengerName: d.passenger_name,
-        type: 'single',
-        status: 'VALID',
-        fromZone: d.from_zone,
-        toZone: d.to_zone,
-      };
-    }
-  }
-
-  // Cash sessions: normalize snake_case and flatten operator_name to nested object
-  if (path.includes('/cash-sessions') && Array.isArray(data.data)) {
-    data.data = data.data.map((s: any) => ({
-      ...normalizeKeys(s),
-      closingBalance: s.actual_cash ?? s.closing_balance ?? null,
-      operator: s.operator_name ? { name: s.operator_name } : null,
-    }));
-  }
-
-  // Cash session open/close: single object response
-  if (path.includes('/cash-sessions') && !Array.isArray(data.data) && typeof data.data === 'object') {
     data.data = {
-      ...normalizeKeys(data.data),
-      closingBalance: data.data.actual_cash ?? data.data.closing_balance ?? null,
-      operator: data.data.operator_name ? { name: data.data.operator_name } : null,
+      id: d.id,
+      ticketNumber: d.ticketNumber,
+      qrCode: d.qrString || d.qrToken,
+      price: d.price,
+      amountPaid: d.amountPaid,
+      changeGiven: d.changeGiven,
+      validFrom: d.validFrom,
+      validTo: d.validTo,
+      passengerName: d.passengerName || null,
+      type: d.type,
+      status: d.status,
+      fromZone: typeof d.fromZone === 'object' && d.fromZone ? d.fromZone.name : (d.fromZone || ''),
+      toZone: typeof d.toZone === 'object' && d.toZone ? d.toZone.name : (d.toZone || ''),
     };
   }
 
-  // Users: normalize snake_case fields
-  if (path.includes('/users') && (Array.isArray(data.data) || data.pagination)) {
-    if (Array.isArray(data.data)) {
-      data.data = data.data.map(normalizeKeys);
-    }
-  }
+  // ── POST /api/tickets/validate (scan ticket) ─────────────────
+  // Local route returns flat { success, valid, result, reason, ticket }.
+  // QR scanner expects nested { success, data: { ticket, result, reason } }.
+  if (path === '/api/tickets/validate') {
+    const result = data.result || 'INVALID';
+    const reason = data.reason || data.error || '';
 
-  // Zones: normalize snake_case and add isActive boolean
-  if (path.includes('/zones') && !path.includes('/tariffs') && Array.isArray(data.data)) {
-    data.data = data.data.map((z: any) => ({
-      ...normalizeKeys(z),
-      isActive: z.is_active === 1 || z.is_active === true,
-    }));
-  }
-
-  // Stops: normalize snake_case, add isActive, nest zone info
-  if (path.includes('/stops') && Array.isArray(data.data)) {
-    data.data = data.data.map((s: any) => ({
-      ...normalizeKeys(s),
-      zoneId: s.zone_id,
-      zone: s.zone_name ? {
-        id: s.zone_id,
-        name: s.zone_name,
-        code: s.zone_code,
-        color: s.zone_color || '#6b7280',
-      } : null,
-      lat: s.latitude,
-      lng: s.longitude,
-      isActive: s.is_active === 1 || s.is_active === true,
-    }));
-  }
-
-  // Lines: normalize snake_case and add isActive
-  if (path.includes('/lines') && Array.isArray(data.data)) {
-    data.data = data.data.map((l: any) => ({
-      ...normalizeKeys(l),
-      isActive: l.is_active === 1 || l.is_active === true,
-      _count: {
-        lineStops: l.stops_count || 0,
-        schedules: l.schedule_count || 0,
-      },
-    }));
-  }
-
-  // Line detail: single line with schedules/stops
-  if (path.match(/\/lines\/[\w-]+$/) && data.data && !Array.isArray(data.data)) {
-    const lineData = data.data;
-    data.data = {
-      ...normalizeKeys(lineData),
-      isActive: lineData.is_active === 1 || lineData.is_active === true,
-      _count: {
-        lineStops: lineData.stops_count || 0,
-        schedules: lineData.schedule_count || 0,
-      },
-      lineStops: (lineData.lineStops || []).map((ls: any) => ({
-        ...normalizeKeys(ls),
-        stopId: ls.to_stop_id || ls.stopId,
-        order: ls.stop_order || ls.order,
-        stop: ls.stop_name ? {
-          id: ls.to_stop_id,
-          name: ls.stop_name,
-          code: ls.stop_code,
-          zoneId: ls.zone_id,
-          lat: ls.latitude,
-          lng: ls.longitude,
-          zone: ls.zone_name ? {
-            id: ls.zone_id,
-            name: ls.zone_name,
-            code: ls.zone_code,
-            color: ls.zone_color || '#6b7280',
-          } : null,
-        } : null,
-      })),
-      schedules: (lineData.schedules || []).map(normalizeKeys),
-    };
-  }
-
-  // Scan/validate ticket response: normalize to frontend ValidationResult
-  if (path.includes('/api/v1/scan')) {
-    if (data.success && data.data) {
+    if (data.ticket) {
+      // Successful parse — ticket was found
       data.data = {
         ticket: {
-          id: data.data.control_id || '',
-          ticketNumber: data.data.ticket_number || '',
-          type: 'single',
-          status: data.data.result === 'VALID' ? 'VALID' : data.data.result,
-          price: data.data.price || 0,
-          validFrom: '',
-          validTo: data.data.valid_until || '',
-          passengerName: data.data.passenger_name || null,
-          passengerPhone: null,
+          id: data.ticket.id || '',
+          ticketNumber: data.ticket.ticketNumber || '',
+          type: data.ticket.type || 'UNIT',
+          status: result === 'VALID' ? 'VALID' : result,
+          price: data.ticket.price || 0,
+          validFrom: data.ticket.validFrom || '',
+          validTo: data.ticket.validTo || '',
+          passengerName: data.ticket.passengerName || null,
+          passengerPhone: data.ticket.passengerPhone || null,
           passengerPhoto: null,
-          fromStop: data.data.from_zone ? { name: data.data.from_zone } : null,
-          toStop: data.data.to_zone ? { name: data.data.to_zone } : null,
-          line: null,
+          fromStop: data.ticket.fromStop ? { name: data.ticket.fromStop.name } : null,
+          toStop: data.ticket.toStop ? { name: data.ticket.toStop.name } : null,
+          line: data.ticket.line ? { name: data.ticket.line.name || data.ticket.line.number } : null,
         },
-        result: data.data.result || 'INVALID',
-        reason: data.data.message || data.data.reason,
+        result,
+        reason,
       };
-    } else if (!data.success) {
-      // Map error response to ValidationResult format
-      const result = data.result || 'INVALID';
+    } else {
+      // Ticket not found or invalid QR
       data.data = {
         ticket: {
           id: '',
-          ticketNumber: data.data?.ticket_number || '',
-          type: 'single',
+          ticketNumber: '',
+          type: 'UNIT',
           status: result,
           price: 0,
           validFrom: '',
-          validTo: data.data?.valid_until || '',
+          validTo: '',
           passengerName: null,
           passengerPhone: null,
           passengerPhoto: null,
@@ -393,84 +146,33 @@ function transformResponse(path: string, data: any): any {
           line: null,
         },
         result,
-        reason: data.message || data.error || 'Erreur de validation',
+        reason: reason || 'Ticket introuvable ou invalide',
       };
     }
   }
 
-  // Offline data: normalize response
-  if (path.includes('/offline/data') && data.data) {
-    const d = data.data;
-    data.data = {
-      blacklist: (d.blacklist || []).map((b: any) => ({
-        ticketId: b.ticket_id,
-        reason: b.status || 'CANCELLED',
-      })),
-      whitelist: (d.whitelist || []).map((w: any) => ({
-        ticketId: w.ticket_id,
-        expiresAt: new Date(w.end_date).getTime(),
-      })),
-    };
+  // ── GET /api/cash-sessions (list) ────────────────────────────
+  // Local route returns sessions with actualCash field.
+  // CashSessionView component expects closingBalance.
+  if (path.includes('/cash-sessions') && Array.isArray(data.data)) {
+    data.data = data.data.map((s: any) => ({
+      ...s,
+      closingBalance: s.actualCash ?? null,
+    }));
   }
 
-  // Controls sync response: map syncedCount
-  if (path.includes('/controls/sync') && data.data) {
+  // ── POST /api/cash-sessions (open) & PUT /api/cash-sessions/close (close) ──
+  // Single cash session object response — add closingBalance alias
+  if (
+    path.includes('/cash-sessions') &&
+    !Array.isArray(data.data) &&
+    data.data &&
+    typeof data.data === 'object' &&
+    !data.data.tickets
+  ) {
     data.data = {
-      syncedCount: data.data.synced || data.data.synced_count || 0,
-      batchId: data.data.batch_id,
-    };
-  }
-
-  // Schedules: normalize snake_case fields
-  if (path.includes('/schedules') && !path.includes('/passages') && (Array.isArray(data.data) || (data.data && !data.data.ticket))) {
-    if (Array.isArray(data.data)) {
-      data.data = data.data.map(normalizeKeys);
-    } else if (data.data && typeof data.data === 'object' && !data.data.ticket) {
-      data.data = normalizeKeys(data.data);
-    }
-  }
-
-  // Public passages: normalize snake_case to camelCase deeply
-  if (path.includes('/public/passages') && data.data) {
-    const d = data.data;
-    data.data = {
-      line: d.line ? normalizeKeys(d.line) : null,
-      dayOfWeek: d.day_of_week,
-      dayName: d.day_name,
-      currentTime: d.current_time,
-      isServiceEnded: d.is_service_ended === true,
-      passages: (d.passages || []).map((p: any) => ({
-        departureTime: p.departure_time,
-        startTime: p.start_time,
-        endTime: p.end_time,
-        frequency: p.frequency,
-        stops: (p.stops || []).map((s: any) => ({
-          stopId: s.stop_id,
-          stopName: s.stop_name,
-          stopCode: s.stop_code,
-          zoneName: s.zone_name || '',
-          zoneColor: s.zone_color || '#6b7280',
-        })),
-      })),
-      stops: (d.stops || []).map((s: any) => ({
-        stopId: s.stop_id,
-        stopName: s.stop_name,
-        stopCode: s.stop_code,
-        zoneName: s.zone_name || '',
-        zoneColor: s.zone_color || '#6b7280',
-      })),
-    };
-  }
-
-  // Pricing/calculate: normalize response
-  if (path.includes('/pricing/calculate') && data.data) {
-    const d = data.data;
-    data.data = {
-      ...normalizeKeys(d),
-      fromZoneName: d.from_zone_name,
-      toZoneName: d.to_zone_name,
-      fareId: d.id || null,
-      message: '',
+      ...data.data,
+      closingBalance: data.data.actualCash ?? null,
     };
   }
 
@@ -495,29 +197,11 @@ export async function apiFetch<T = any>(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  // Transform request body
-  let body = options.body;
-  if (body && typeof body === 'string') {
-    try {
-      const parsed = JSON.parse(body);
-      const transformed = transformRequestBody(endpoint, parsed);
-      if (transformed !== parsed) {
-        body = JSON.stringify(transformed);
-      }
-    } catch {
-      // not JSON, keep as-is
-    }
-  }
-
-  // Build the backend URL
-  const method = options.method || 'GET';
-  const backendUrl = toBackendUrl(endpoint, {
-    method,
-    body: body ? (typeof body === 'string' ? JSON.parse(body) : body) : undefined,
-  });
+  // Build the local URL — all endpoints are local, no body transformation needed
+  const backendUrl = toBackendUrl(endpoint);
 
   try {
-    const res = await fetch(backendUrl, { ...options, headers, body });
+    const res = await fetch(backendUrl, { ...options, headers, body: options.body });
 
     // Handle 401 - try refresh
     if (res.status === 401 && accessToken) {
@@ -525,7 +209,7 @@ export async function apiFetch<T = any>(
       if (refreshed) {
         const newToken = useAuthStore.getState().accessToken;
         headers['Authorization'] = `Bearer ${newToken}`;
-        const retryRes = await fetch(backendUrl, { ...options, headers, body });
+        const retryRes = await fetch(backendUrl, { ...options, headers, body: options.body });
         const retryData = await retryRes.json();
         return transformResponse(endpoint, retryData);
       } else {
