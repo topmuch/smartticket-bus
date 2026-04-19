@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bus, Menu, X, ChevronDown, LayoutDashboard, LogIn, ScanLine, Store } from 'lucide-react';
+import { Bus, Menu, X, ChevronDown, LayoutDashboard, LogIn, ScanLine, Store, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth-store';
@@ -11,7 +11,7 @@ const NAV_LINKS = [
   { label: 'Accueil', href: '#accueil' },
   { label: 'Horaires', href: '#horaires' },
   { label: 'Lignes', href: '#lignes' },
-  { label: 'Gares', href: '#gares' },
+  { label: 'Démo Affichage', href: '#demo-affichage' },
   { label: 'À Propos', href: '#a-propos' },
   { label: 'Contact', href: '#contact' },
 ];
@@ -105,6 +105,15 @@ export function Header() {
 
             {/* Desktop Right */}
             <div className="hidden lg:flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { window.location.href = '/?display=peters&mode=demo'; }}
+                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 gap-1.5"
+              >
+                <Monitor className="h-4 w-4" />
+                Démo Affichage
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -244,6 +253,13 @@ export function Header() {
               </nav>
 
               <div className="px-6 pb-8 pt-4 border-t space-y-3">
+                <Button
+                  className="w-full h-12 text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold gap-2"
+                  onClick={() => { setMobileOpen(false); window.location.href = '/?display=peters&mode=demo'; }}
+                >
+                  <Monitor className="h-5 w-5" />
+                  Lancer la Démo Affichage
+                </Button>
                 <Button variant="outline" className="w-full h-12 text-base border-slate-300" onClick={() => { setMobileOpen(false); scrollToSection('#horaires'); }}>
                   Espace Voyageur
                 </Button>
