@@ -2,13 +2,43 @@ import { useAuthStore } from '@/stores/auth-store';
 
 // ============================================
 // Backend URL Mapping
-// Routes all /api/... calls to Express backend on port 3001
+// Public endpoints → Next.js API routes (local)
+// Authenticated/admin endpoints → Express backend (port 3001)
 // ============================================
 const BACKEND_PORT = 3001;
 
 /**
+ * Check if a resolved path is a public endpoint served by Next.js API routes.
+ * These endpoints do NOT need XTransformPort.
+ */
+function isLocalPublicEndpoint(resolvedPath: string, method?: string): boolean {
+  const pathOnly = resolvedPath.split('?')[0];
+
+  // Public portal endpoints
+  if (pathOnly === '/api/v1/public/info') return true;
+  if (pathOnly === '/api/v1/public/fares') return true;
+  if (pathOnly === '/api/v1/public/passages') return true;
+
+  // Zones (GET only — list for portal filter)
+  if (pathOnly === '/api/v1/zones' && (!method || method === 'GET')) return true;
+
+  // Lines list and detail (GET only — portal browsing)
+  if (pathOnly === '/api/v1/lines' && (!method || method === 'GET')) return true;
+  if (/^\/api\/v1\/lines\/[\w-]+$/.test(pathOnly) && (!method || method === 'GET')) return true;
+
+  // Stops (GET only — portal browsing)
+  if (pathOnly === '/api/v1/stops' && (!method || method === 'GET')) return true;
+
+  // Pricing calculate (POST — portal route planner)
+  if (pathOnly === '/api/v1/pricing/calculate') return true;
+
+  return false;
+}
+
+/**
  * Convert a frontend API path to the Express backend URL.
  * Handles path mapping and query param transformation.
+ * Public endpoints are served by Next.js locally (no port transformation).
  */
 export function toBackendUrl(
   path: string,
@@ -20,9 +50,9 @@ export function toBackendUrl(
     return `${path}${separator}XTransformPort=${BACKEND_PORT}`;
   }
 
-  // Public info endpoints
+  // Public info: /api/public/info → /api/v1/public/info (local)
   if (path === '/api/public/info') {
-    return `/api/v1/public/info?XTransformPort=${BACKEND_PORT}`;
+    return '/api/v1/public/info';
   }
 
   // Map /api/fares/* to /api/v1/tariffs/*
@@ -54,7 +84,12 @@ export function toBackendUrl(
     path = path.replace('/api/', '/api/v1/');
   }
 
-  // Append XTransformPort
+  // Check if this is a public endpoint served by Next.js locally
+  if (isLocalPublicEndpoint(path, options?.method)) {
+    return path; // No XTransformPort needed
+  }
+
+  // All other endpoints go to Express backend
   const separator = path.includes('?') ? '&' : '?';
   return `${path}${separator}XTransformPort=${BACKEND_PORT}`;
 }

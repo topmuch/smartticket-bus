@@ -1155,3 +1155,38 @@ Stage Summary:
 - Server runs stable without periodic saveDB timer
 - ESLint: 0 errors
 - Frontend + Backend both running
+
+---
+Task ID: 1
+Agent: full-stack-developer
+Task: Create Next.js API routes for public portal
+
+Work Log:
+- Read worklog and analyzed existing project structure (12 Prisma models, 8 portal components, Express backend on port 3001)
+- Read all frontend portal components to understand expected data format
+- Read api.ts transformResponse to understand snake_case → camelCase normalization
+- Fixed prisma/seed.ts: updated import from generateFullQR to generateQRToken, fixed QR payload format
+- Ran bun run db:push (schema already in sync) and bun run prisma/seed.ts (all data seeded successfully)
+- Created 8 Next.js API route files under src/app/api/v1/:
+  1. src/app/api/v1/public/info/route.ts - Returns app stats (zones_count, lines_count, stops_count, etc.)
+  2. src/app/api/v1/zones/route.ts - Returns all active zones with snake_case fields
+  3. src/app/api/v1/lines/route.ts - Returns all active lines with stops_count and schedule_count
+  4. src/app/api/v1/lines/[id]/route.ts - Returns line detail with lineStops and schedules
+  5. src/app/api/v1/stops/route.ts - Returns all active stops with zone info
+  6. src/app/api/v1/public/fares/route.ts - Returns all active fares with zone names/colors
+  7. src/app/api/v1/public/passages/route.ts - Returns next bus passages with stop details
+  8. src/app/api/v1/pricing/calculate/route.ts - POST endpoint to calculate price between zones
+- All routes return snake_case fields matching transformResponse expectations
+- Modified src/lib/api.ts:
+  - Added isLocalPublicEndpoint() helper function to identify 8 public endpoints
+  - Modified toBackendUrl() to skip XTransformPort for public endpoints (served by Next.js)
+  - Authenticated endpoints (auth, sell, scan, cash-sessions, admin CRUD) still use XTransformPort=3001
+- All 8 endpoints tested via curl: all return correct data
+- ESLint: 0 errors
+
+Stage Summary:
+- Created 8 API route files under src/app/api/v1/
+- Database seeded with 5 zones, 6 lines, 15 stops, 25 line-stops, 39 schedules, 15 fares, 5 users
+- Public portal endpoints now served by Next.js API routes directly (no Express backend dependency)
+- All authenticated/admin endpoints still route to Express backend via XTransformPort=3001
+- ESLint: 0 errors

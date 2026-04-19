@@ -1,6 +1,6 @@
 import { db } from '../src/lib/db';
 import { hashPassword } from '../src/lib/auth';
-import { generateFullQR } from '../src/lib/qr';
+import { generateQRToken } from '../src/lib/qr';
 
 async function seed() {
   console.log('🌱 Seeding SmartTicket Bus database...\n');
@@ -473,21 +473,22 @@ async function seed() {
 
   for (const td of sampleTickets) {
     const qrPayload = {
-      ticketId: `tmp-${td.ticketNumber}`,
+      tid: `tmp-${td.ticketNumber}`,
+      typ: td.type as 'UNIT' | 'SUBSCRIPTION',
+      zf: zone1.id,
+      zt: zone2.id,
+      exp: Math.floor(td.validTo.getTime() / 1000),
+      iat: Math.floor(now.getTime() / 1000),
       ticketNumber: td.ticketNumber,
-      type: td.type,
-      fromZone: zone1.code,
-      toZone: zone2.code,
       fromStop: createdStops[0].code,
       toStop: createdStops[3].code,
+      fromZone: zone1.code,
+      toZone: zone2.code,
       passengerName: td.passengerName,
-      validFrom: td.validFrom.toISOString(),
-      validTo: td.validTo.toISOString(),
-      issuedAt: now.toISOString(),
     };
 
-    const qrString = generateFullQR(qrPayload);
-    const [token, signature] = qrString.split('.');
+    const qrString = generateQRToken(qrPayload);
+    const [token, signature] = [qrString, ''];
 
     await db.ticket.create({
       data: {
