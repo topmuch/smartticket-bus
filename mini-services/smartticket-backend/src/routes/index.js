@@ -468,6 +468,9 @@ router.get('/reports/revenue', authenticate, authorize('SUPERADMIN'), adminCtrl.
 router.get('/reports/controls', authenticate, authorize('SUPERADMIN'), adminCtrl.getControlsReport);
 router.get('/reports/export', authenticate, authorize('SUPERADMIN'), adminCtrl.exportCSV);
 
+// --- ABONNEMENTS ---
+router.get('/subscriptions', authenticate, authorize('SUPERADMIN', 'OPERATOR'), adminCtrl.getSubscriptions);
+
 // --- AUDIT ---
 router.get('/audit-logs', authenticate, authorize('SUPERADMIN'), adminCtrl.getAuditLogs);
 

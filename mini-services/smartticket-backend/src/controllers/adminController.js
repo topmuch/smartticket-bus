@@ -201,10 +201,17 @@ exports.createZone = (req, res) => {
     const { code, name, description, color } = req.body;
     const id = require('uuid').v4();
 
-    db.prepare(`
-      INSERT INTO zones (id, code, name, description, color)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, code, name, description || null, color || '#3b82f6');
+    try {
+      db.prepare(`
+        INSERT INTO zones (id, code, name, description, color)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, code, name, description || null, color || '#3b82f6');
+    } catch (insertErr) {
+      if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
+        return res.status(409).json({ success: false, error: 'Ce code de zone existe déjà' });
+      }
+      throw insertErr;
+    }
 
     const zone = db.prepare('SELECT * FROM zones WHERE id = ?').get(id);
 
@@ -1228,6 +1235,45 @@ exports.getAuditLogs = (req, res) => {
     });
   } catch (error) {
     console.error('Erreur audit logs:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+};
+
+// ============================================
+// ABONNEMENTS
+// ============================================
+exports.getSubscriptions = (req, res) => {
+  try {
+    const { page = 1, limit = 20, is_active } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+
+    if (is_active !== undefined) {
+      whereClause += ' AND s.is_active = ?';
+      params.push(parseInt(is_active));
+    }
+
+    const total = db.prepare(`SELECT COUNT(*) as count FROM subscriptions s ${whereClause}`).get(...params).count;
+    const subscriptions = db.prepare(`
+      SELECT s.*, t.ticket_number, t.passenger_name, t.status as ticket_status,
+             z.name as zone_name, z.code as zone_code
+      FROM subscriptions s
+      LEFT JOIN tickets t ON s.ticket_id = t.id
+      LEFT JOIN zones z ON s.zone_id = z.id
+      ${whereClause}
+      ORDER BY s.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, parseInt(limit), offset);
+
+    res.json({
+      success: true,
+      data: subscriptions,
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) }
+    });
+  } catch (error) {
+    console.error('Erreur get subscriptions:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 };

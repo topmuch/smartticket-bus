@@ -88,6 +88,8 @@ exports.sellTicket = async (req, res) => {
         ticket_id: ticketId,
         ticket_number: ticketNumber,
         qr_code: qrToken,
+        qr_token: qrToken, // Alias for scan endpoint compatibility
+        qrString: qrToken, // Alias for frontend compatibility
         price: price,
         amount_paid: amount_paid || price,
         change: Math.max(0, changeGiven),

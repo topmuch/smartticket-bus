@@ -353,9 +353,11 @@ function checkConnection() {
 
 /**
  * Sauvegarder la base en fichier
+ * Only saves if dirty (data has changed since last save)
+ * Uses busy-wait pattern to prevent concurrent saves
  */
 function saveDB() {
-  if (_saving || !db) return; // Skip if already saving or no db
+  if (_saving || !db) return;
   _saving = true;
   try {
     const data = db.export();

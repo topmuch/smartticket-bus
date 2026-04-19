@@ -220,13 +220,11 @@ async function startServer() {
   });
 
   // ============================================
-  // 6. SAUVEGARDE DB PÉRIODIQUE
-  // Note: saveDB only on graceful shutdown to avoid sql.js db.export() lock contention
+  // 6. SAUVEGARDE DB
+  // Only save on graceful shutdown (SIGINT/SIGTERM).
+  // sql.js db.export() is NOT safe to call during request processing
+  // as it can crash the WASM module.
   // ============================================
-  // Save periodically using defered execution to avoid blocking the event loop
-  setInterval(() => {
-    setImmediate(() => { try { saveDB(); } catch (e) { /* ignore */ } });
-  }, 120000); // Every 2 minutes instead of 30 seconds
 
   // ============================================
   // 7. DÉMARRAGE DU SERVEUR
