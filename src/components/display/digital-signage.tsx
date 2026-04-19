@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import {
@@ -11,6 +11,7 @@ import {
   Maximize2,
   Minimize2,
   Monitor,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 // ============================================================
@@ -32,7 +33,7 @@ interface Departure {
   scheduledTime: string;
   estimatedTime: string;
   platform: string;
-  status: 'on-time' | 'delayed' | 'cancelled' | 'departed';
+  status: 'on-time' | 'delayed' | 'cancelled' | 'departed' | 'boarding';
   type: string;
   delayMinutes: number;
   minutesUntil: number;
@@ -55,10 +56,83 @@ interface DisplayData {
 }
 
 // ============================================================
+// Mock Data Generator (Demo Mode)
+// ============================================================
+function generateMockDepartures(): Departure[] {
+  const now = new Date();
+  const lines = [
+    { number: 'L10', color: '#2563EB', dest: 'DAKAR - Gare Centrale' },
+    { number: 'L24', color: '#10B981', dest: 'MBOUR - Terminal' },
+    { number: 'L05', color: '#F59E0B', dest: 'THIÈS - Centre' },
+    { number: 'L08', color: '#EF4444', dest: 'SAINT-LOUIS' },
+    { number: 'L12', color: '#8B5CF6', dest: 'KAOLACK - Marché' },
+    { number: 'L03', color: '#EC4899', dest: 'AÉROPORT - AIBD' },
+    { number: 'L15', color: '#06B6D4', dest: 'RUFISQUE - Gare' },
+    { number: 'L07', color: '#84CC16', dest: 'DIAMNIADIO - Terminus' },
+    { number: 'L18', color: '#F97316', dest: 'LOUGA - Nord' },
+    { number: 'L21', color: '#6366F1', dest: 'TAMBACOUNDA' },
+  ];
+
+  const statuses: Departure['status'][] = ['on-time', 'on-time', 'on-time', 'delayed', 'boarding', 'on-time', 'on-time', 'departed', 'on-time', 'delayed'];
+
+  return lines.map((line, i) => {
+    const minutesOffset = (i * 8) - 5 + Math.floor(Math.random() * 5);
+    const depTime = new Date(now.getTime() + minutesOffset * 60000);
+    const hours = String(depTime.getHours()).padStart(2, '0');
+    const mins = String(depTime.getMinutes()).padStart(2, '0');
+    const time = `${hours}:${mins}`;
+    const status = statuses[i];
+    const delay = status === 'delayed' ? 5 + Math.floor(Math.random() * 20) : 0;
+    const estimatedTime = delay > 0
+      ? (() => {
+          const e = new Date(depTime.getTime() + delay * 60000);
+          return `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`;
+        })()
+      : time;
+
+    return {
+      id: `mock-${i}`,
+      lineNumber: line.number,
+      lineName: line.dest,
+      lineColor: line.color,
+      destination: line.dest,
+      scheduledTime: time,
+      estimatedTime,
+      platform: `Quai ${((i % 6) + 1)}`,
+      status,
+      type: i < 7 ? 'departure' : 'arrival',
+      delayMinutes: delay,
+      minutesUntil: minutesOffset,
+      isImminent: minutesOffset >= 0 && minutesOffset <= 10,
+      isPast: minutesOffset < -2,
+    };
+  }).sort((a, b) => a.minutesUntil - b.minutesUntil);
+}
+
+function generateMockMessages(): Message[] {
+  return [
+    { id: 'm1', text: '⚠️ INFO VOYAGEURS : RETARDS DE 15 MIN SUR LA LIGNE DAKAR-MBOUR CAUSE TRAVAUX — MERCI DE VOTRE COMPRÉHENSION', priority: 'urgent' },
+    { id: 'm2', text: '🚌 Bienvenue à la Gare Routière Peters — SmartTicketQR, votre partenaire voyage', priority: 'info' },
+    { id: 'm3', text: '📱 Téléchargez l\'application SmartTicketQR pour réserver vos billets en ligne', priority: 'normal' },
+  ];
+}
+
+function generateMockData(): DisplayData {
+  const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const now = new Date();
+  return {
+    station: { id: 'demo', name: 'GARE ROUTIÈRE PETERS', city: 'DAKAR', timezone: 'GMT' },
+    currentTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    dayName: `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`,
+    departures: generateMockDepartures(),
+    messages: generateMockMessages(),
+  };
+}
+
+// ============================================================
 // Custom Hooks
 // ============================================================
-
-/** Real-time clock updating every second */
 function useRealTimeClock() {
   const [clock, setClock] = useState('');
   useEffect(() => {
@@ -75,19 +149,26 @@ function useRealTimeClock() {
   return clock;
 }
 
-/** Poll display data every 30s, auto-retry every 5s on failure */
-function useDisplayPolling(
-  stationId: string | null,
-  type: string
-) {
-  const [displayData, setDisplayData] = useState<DisplayData | null>(null);
+function useDisplayPolling(stationId: string | null, type: string, isDemo: boolean) {
+  const [displayData, setDisplayData] = useState<DisplayData | null>(isDemo ? generateMockData() : null);
   const [connectionLost, setConnectionLost] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isDemo ? false : true);
   const lastGoodRef = useRef<DisplayData | null>(null);
   const [lastGoodData, setLastGoodData] = useState<DisplayData | null>(null);
 
+  // Demo mode: refresh mock data every 30s
+  useEffect(() => {
+    if (!isDemo) return;
+
+    const interval = setInterval(() => {
+      setDisplayData(generateMockData());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isDemo]);
+
   const fetchData = useCallback(async () => {
-    if (!stationId) return;
+    if (!stationId || isDemo) return;
     try {
       const result = await apiFetch<DisplayData>(
         `/api/v1/public/display/${stationId}?type=${type}&limit=30`
@@ -106,26 +187,24 @@ function useDisplayPolling(
       setConnectionLost(true);
       if (!lastGoodRef.current) setLoading(false);
     }
-  }, [stationId, type]);
+  }, [stationId, type, isDemo]);
 
-  // Main polling every 30s
   useEffect(() => {
-    if (!stationId) return;
+    if (!stationId || isDemo) return;
     let cancelled = false;
     const poll = async () => { if (!cancelled) await fetchData(); };
     poll();
     const id = setInterval(poll, 30000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [stationId, fetchData]);
+  }, [stationId, fetchData, isDemo]);
 
-  // Auto-retry every 5s when connection lost
   useEffect(() => {
-    if (!connectionLost || !stationId) return;
+    if (!connectionLost || !stationId || isDemo) return;
     let cancelled = false;
     const poll = async () => { if (!cancelled) await fetchData(); };
     const id = setInterval(poll, 5000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [connectionLost, stationId, fetchData]);
+  }, [connectionLost, stationId, fetchData, isDemo]);
 
   return {
     displayData: displayData || lastGoodData,
@@ -134,7 +213,6 @@ function useDisplayPolling(
   };
 }
 
-/** Toggle fullscreen via Fullscreen API */
 function useFullscreen() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -159,7 +237,6 @@ function useFullscreen() {
   };
 }
 
-/** Hide cursor after 10s inactivity, show on mousemove */
 function useKioskMode() {
   const [hidden, setHidden] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -224,6 +301,13 @@ function AnimationStyles() {
       .animate-live-dot {
         animation: livePulse 2s ease-in-out infinite;
       }
+      @keyframes imminentPulse {
+        0%, 100% { background-color: rgba(59, 130, 246, 0.05); }
+        50% { background-color: rgba(59, 130, 246, 0.12); }
+      }
+      .animate-imminent-row {
+        animation: imminentPulse 2s ease-in-out infinite;
+      }
       .kiosk-cursor-hidden {
         cursor: none !important;
       }
@@ -241,27 +325,47 @@ function StationSelector({
   stations,
   onSelect,
   loadingStations,
+  onDemoMode,
 }: {
   stations: Station[];
   onSelect: (station: Station) => void;
   loadingStations: boolean;
+  onDemoMode: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A] p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="w-full max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 shadow-lg shadow-rose-500/20">
               <Bus className="w-8 h-8 text-white" />
             </div>
           </div>
           <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-wide mb-2">
-            SmartTicket Bus
+            SmartTicket<span className="text-rose-400">QR</span>
           </h1>
           <h2 className="text-lg md:text-2xl text-white/60">
             Sélectionnez votre gare
           </h2>
+        </div>
+
+        {/* Demo Button */}
+        <div className="text-center mb-8">
+          <button
+            onClick={onDemoMode}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all duration-300"
+          >
+            <Monitor className="w-5 h-5" />
+            Mode Démo — Affichage Gare
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="flex-1 h-px bg-white/10" />
+          <span className="text-xs text-white/30 uppercase tracking-widest">ou</span>
+          <div className="flex-1 h-px bg-white/10" />
         </div>
 
         {/* Station grid */}
@@ -274,7 +378,7 @@ function StationSelector({
           <div className="text-center py-20">
             <WifiOff className="w-16 h-16 text-white/30 mx-auto mb-4" />
             <p className="text-white/50 text-xl">Aucune gare disponible</p>
-            <p className="text-white/30 text-base mt-2">Vérifiez votre connexion internet</p>
+            <p className="text-white/30 text-base mt-2">Utilisez le mode Démo ci-dessus</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
@@ -285,14 +389,12 @@ function StationSelector({
                 className="group flex flex-col items-start gap-3 p-6 lg:p-8 bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 rounded-2xl transition-all duration-200 text-left"
               >
                 <div>
-                  <h3 className="text-lg lg:text-2xl font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  <h3 className="text-lg lg:text-2xl font-bold text-white group-hover:text-rose-300 transition-colors">
                     {station.name}
                   </h3>
-                  <p className="text-sm lg:text-base text-white/40 mt-1">
-                    {station.city}
-                  </p>
+                  <p className="text-sm lg:text-base text-white/40 mt-1">{station.city}</p>
                 </div>
-                <span className="text-emerald-400/70 group-hover:text-emerald-300 text-sm font-medium">
+                <span className="text-rose-400/70 group-hover:text-rose-300 text-sm font-medium">
                   Ouvrir l&apos;affichage →
                 </span>
               </button>
@@ -311,22 +413,25 @@ function StationHeader({
   stationName,
   clock,
   dayName,
+  isDemo,
 }: {
   stationName: string;
   clock: string;
   dayName: string;
+  isDemo: boolean;
 }) {
   const [hours, minutes, seconds] = clock ? clock.split(':') : ['--', '--', '--'];
 
   return (
-    <header className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-[#0F172A] text-white select-none shrink-0">
+    <header className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white select-none shrink-0">
       {/* Left: Logo */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-center justify-center w-11 h-11 md:w-14 md:h-14 rounded-xl bg-white/10 shrink-0">
+        <div className="flex items-center justify-center w-11 h-11 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 shrink-0 shadow-lg">
           <Bus className="w-6 h-6 md:w-8 md:h-8 text-white" />
         </div>
         <div className="hidden sm:block">
           <span className="text-base md:text-xl font-bold tracking-tight">SmartTicket</span>
+          <span className="text-rose-400 font-bold">QR</span>
         </div>
       </div>
 
@@ -338,20 +443,26 @@ function StationHeader({
         <h1 className="text-2xl md:text-3xl lg:text-5xl font-bold uppercase tracking-wide leading-tight truncate max-w-[55vw]">
           {stationName || 'Gare Routière'}
         </h1>
+        {isDemo && (
+          <span className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] md:text-xs font-bold rounded-full border border-amber-500/30">
+            <Monitor className="w-3 h-3" />
+            MODE DÉMO
+          </span>
+        )}
       </div>
 
       {/* Right: Clock + Live indicator */}
       <div className="flex items-center gap-3 md:gap-4 min-w-0">
-        {/* Live dot + EN DIRECT */}
+        {/* Live dot */}
         <div className="hidden md:flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-live-dot" />
           <span className="text-xs md:text-sm font-semibold text-emerald-300 uppercase tracking-wide">
-            EN DIRECT
+            {isDemo ? 'DÉMO' : 'EN DIRECT'}
           </span>
         </div>
 
-        {/* Clock with blinking colon */}
-        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg px-3 py-2 md:px-4 md:py-2.5 font-mono">
+        {/* Clock */}
+        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg px-3 py-2 md:px-4 md:py-2.5 font-mono border border-white/10">
           <Clock className="w-4 h-4 md:w-5 md:h-5 text-white/40 mr-1.5" />
           <span className="text-xl md:text-2xl lg:text-4xl font-bold tabular-nums">{hours}</span>
           <span className="text-xl md:text-2xl lg:text-4xl font-bold animate-pulse-colon">:</span>
@@ -376,13 +487,11 @@ function ScrollingTicker({ messages }: { messages: Message[] }) {
     info: 'bg-blue-600 text-white',
   };
 
-  // Determine highest priority for background color
   const order = ['urgent', 'normal', 'info'];
   const highest = messages.reduce((h, m) => {
     return order.indexOf(m.priority) < order.indexOf(h) ? m.priority : h;
   }, 'info');
 
-  // Join messages with "  •  " and duplicate for continuous scroll
   const text = messages.map((m) => m.text).join('  •  ');
   const duplicated = `${text}  •  ${text}`;
 
@@ -404,6 +513,14 @@ function StatusBadge({ status, delayMinutes }: { status: string; delayMinutes: n
       <span className="inline-flex items-center gap-1.5 px-3 py-1 md:px-4 md:py-1.5 rounded-full bg-emerald-100 text-emerald-700 text-sm md:text-lg font-bold">
         <span className="w-2 h-2 rounded-full bg-emerald-500" />
         À l&apos;heure
+      </span>
+    );
+  }
+  if (status === 'boarding') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 md:px-4 md:py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm md:text-lg font-bold">
+        <span className="w-2 h-2 rounded-full bg-blue-500 animate-live-dot" />
+        Embarquement
       </span>
     );
   }
@@ -451,7 +568,7 @@ function DeparturesTable({
           onClick={() => onTabChange('departure')}
           className={`flex items-center gap-2 px-5 py-3 md:px-6 md:py-4 text-lg md:text-xl lg:text-2xl font-bold uppercase tracking-wide transition-colors ${
             activeTab === 'departure'
-              ? 'text-[#0F172A] border-b-[3px] border-[#0F172A]'
+              ? 'text-slate-900 border-b-[3px] border-rose-500'
               : 'text-gray-400 border-b-[3px] border-transparent hover:text-gray-600'
           }`}
         >
@@ -462,7 +579,7 @@ function DeparturesTable({
           onClick={() => onTabChange('arrival')}
           className={`flex items-center gap-2 px-5 py-3 md:px-6 md:py-4 text-lg md:text-xl lg:text-2xl font-bold uppercase tracking-wide transition-colors ${
             activeTab === 'arrival'
-              ? 'text-[#0F172A] border-b-[3px] border-[#0F172A]'
+              ? 'text-slate-900 border-b-[3px] border-rose-500'
               : 'text-gray-400 border-b-[3px] border-transparent hover:text-gray-600'
           }`}
         >
@@ -485,8 +602,7 @@ function DeparturesTable({
           </div>
         ) : (
           <table className="w-full">
-            {/* Header */}
-            <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10">
+            <thead className="bg-slate-100 sticky top-0 z-10">
               <tr>
                 <th className="text-left px-4 md:px-6 py-3 md:py-4 text-sm md:text-base font-bold uppercase tracking-wider text-gray-500 border-b-2 border-gray-200 w-[14%]">
                   Heure
@@ -506,26 +622,24 @@ function DeparturesTable({
               </tr>
             </thead>
 
-            {/* Body */}
             <tbody>
               {departures.map((dep, index) => {
                 const isCancelled = dep.status === 'cancelled';
                 const isPast = dep.isPast || dep.status === 'departed';
                 const isImminent = dep.isImminent && !isPast && !isCancelled;
 
-                // Row classes
                 let rowClasses = 'animate-fade-in-row';
                 if (isCancelled) {
-                  rowClasses += ' bg-red-100 text-red-600 line-through';
+                  rowClasses += ' bg-red-50 text-red-600 line-through';
                 } else if (isPast) {
                   rowClasses += ' opacity-40';
                 } else if (isImminent) {
-                  rowClasses += ' border-l-4 border-blue-500 bg-blue-50/50';
+                  rowClasses += ' border-l-4 border-blue-500 animate-imminent-row';
                 } else {
-                  rowClasses += ' hover:bg-gray-50';
+                  rowClasses += ' hover:bg-slate-50';
                 }
 
-                const textMuted = isPast ? 'text-gray-400' : isCancelled ? 'text-red-600' : 'text-gray-900';
+                const textMuted = isPast ? 'text-gray-400' : isCancelled ? 'text-red-600' : 'text-slate-900';
 
                 return (
                   <tr
@@ -536,14 +650,11 @@ function DeparturesTable({
                       animationFillMode: 'both',
                     }}
                   >
-                    {/* Time */}
                     <td className={`px-4 md:px-6 py-4 md:py-5 ${textMuted}`}>
                       <span className="text-lg md:text-xl lg:text-3xl font-bold font-mono tabular-nums">
                         {dep.estimatedTime}
                       </span>
                     </td>
-
-                    {/* Line badge */}
                     <td className="px-4 md:px-6 py-4 md:py-5">
                       <span
                         className="inline-flex items-center justify-center w-9 h-9 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg text-white text-sm md:text-lg lg:text-xl font-black shrink-0"
@@ -552,22 +663,16 @@ function DeparturesTable({
                         {dep.lineNumber}
                       </span>
                     </td>
-
-                    {/* Destination */}
                     <td className={`px-4 md:px-6 py-4 md:py-5 ${textMuted}`}>
                       <span className="text-base md:text-lg lg:text-2xl font-semibold">
                         {dep.destination}
                       </span>
                     </td>
-
-                    {/* Platform */}
                     <td className={`px-4 md:px-6 py-4 md:py-5 ${textMuted}`}>
                       <span className="text-base md:text-lg lg:text-2xl font-bold">
                         {dep.platform}
                       </span>
                     </td>
-
-                    {/* Status */}
                     <td className="px-4 md:px-6 py-4 md:py-5">
                       <StatusBadge status={dep.status} delayMinutes={dep.delayMinutes} />
                     </td>
@@ -587,7 +692,7 @@ function DeparturesTable({
 // ============================================================
 function SignageFooter() {
   return (
-    <footer className="flex items-center justify-between px-4 py-2.5 md:px-8 md:py-3.5 bg-[#0F172A] text-white/70 select-none shrink-0">
+    <footer className="flex items-center justify-between px-4 py-2.5 md:px-8 md:py-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white/70 select-none shrink-0">
       {/* Left: Weather + WiFi */}
       <div className="flex items-center gap-3 md:gap-5">
         <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5 md:px-3 md:py-2">
@@ -600,29 +705,29 @@ function SignageFooter() {
         </div>
       </div>
 
-      {/* Center: Services + Welcome */}
+      {/* Center: Services */}
       <div className="hidden md:flex flex-col items-center gap-0.5 text-center">
         <div className="flex items-center gap-4 md:gap-5 text-white/60">
-          {/* WC */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs md:text-sm font-bold uppercase bg-white/10 rounded px-1.5 py-0.5">WC</span>
           </div>
-          {/* Utensils */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs md:text-sm font-medium uppercase">🍽️ Restaurant</span>
           </div>
-          {/* Phone */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs md:text-sm font-medium">📞 +221 77 XXX XX XX</span>
           </div>
         </div>
         <p className="text-[10px] md:text-xs text-white/40 italic">
-          Bienvenue à bord des lignes SmartTicket Bus
+          Bienvenue à bord des lignes SmartTicketQR
         </p>
       </div>
 
-      {/* Right placeholder for balance */}
-      <div className="hidden lg:block w-32" />
+      {/* Right: Brand */}
+      <div className="hidden lg:flex items-center gap-2 text-white/40 text-xs">
+        <Bus className="w-4 h-4" />
+        <span>www.smartticketqr.com</span>
+      </div>
     </footer>
   );
 }
@@ -642,7 +747,7 @@ function ConnectionLostBanner() {
 }
 
 // ============================================================
-// 7. Fullscreen Button (bottom-right)
+// 7. Fullscreen Button
 // ============================================================
 function FullscreenButton() {
   const { isFullscreen, toggle, supported } = useFullscreen();
@@ -652,14 +757,10 @@ function FullscreenButton() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-11 h-11 md:w-12 md:h-12 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-white/70 hover:text-white transition-all duration-200 shadow-lg border border-white/10 hover:border-white/20"
+      className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-11 h-11 md:w-12 md:h-12 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white/70 hover:text-white transition-all duration-200 shadow-lg border border-white/10 hover:border-white/20"
       aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
     >
-      {isFullscreen ? (
-        <Minimize2 className="w-5 h-5" />
-      ) : (
-        <Maximize2 className="w-5 h-5" />
-      )}
+      {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
     </button>
   );
 }
@@ -671,8 +772,8 @@ export function DigitalSignage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen flex items-center justify-center bg-[#0F172A]">
-          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="h-screen flex items-center justify-center bg-slate-900">
+          <div className="w-12 h-12 border-4 border-white/20 border-t-rose-500 rounded-full animate-spin" />
         </div>
       }
     >
@@ -682,28 +783,34 @@ export function DigitalSignage() {
 }
 
 // ============================================================
-// Inner Component (uses useSearchParams)
+// Inner Component
 // ============================================================
 function DigitalSignageInner() {
   const searchParams = useSearchParams();
 
-  // State
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [activeTab, setActiveTab] = useState<'departure' | 'arrival'>('departure');
   const [loadingStations, setLoadingStations] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
-  // Hooks
   const clock = useRealTimeClock();
   const kioskHidden = useKioskMode();
 
   const stationId = selectedStation?.id || null;
-  const { displayData, connectionLost, loading } = useDisplayPolling(stationId, activeTab);
+  const { displayData, connectionLost, loading } = useDisplayPolling(stationId, activeTab, isDemo);
 
-  // ============================================================
-  // Fetch stations list
-  // ============================================================
+  // Check URL for demo mode
   useEffect(() => {
+    const demo = searchParams.get('mode');
+    if (demo === 'demo') {
+      setIsDemo(true);
+    }
+  }, [searchParams]);
+
+  // Fetch stations list
+  useEffect(() => {
+    if (isDemo) return;
     const fetchStations = async () => {
       try {
         const result = await apiFetch<Station[]>('/api/v1/public/stations');
@@ -717,13 +824,11 @@ function DigitalSignageInner() {
       }
     };
     fetchStations();
-  }, []);
+  }, [isDemo]);
 
-  // ============================================================
-  // Determine station from URL param or localStorage
-  // ============================================================
+  // Determine station from URL or localStorage
   useEffect(() => {
-    // Priority 1: URL query param
+    if (isDemo) return;
     const urlStationId = searchParams.get('stationId');
     if (urlStationId && stations.length > 0) {
       const found = stations.find((s) => s.id === urlStationId);
@@ -734,7 +839,6 @@ function DigitalSignageInner() {
       }
     }
 
-    // Priority 2: localStorage
     const savedId = localStorage.getItem('signage-station-id');
     if (savedId) {
       const found = stations.find((s) => s.id === savedId);
@@ -742,23 +846,21 @@ function DigitalSignageInner() {
         setSelectedStation(found);
         return;
       }
-      // ID no longer valid, clear it
       localStorage.removeItem('signage-station-id');
     }
-  }, [searchParams, stations]);
+  }, [searchParams, stations, isDemo]);
 
-  // ============================================================
-  // Station selection handler
-  // ============================================================
   const handleStationSelect = useCallback((station: Station) => {
     setSelectedStation(station);
     localStorage.setItem('signage-station-id', station.id);
   }, []);
 
-  // ============================================================
-  // Show station selector if no station selected
-  // ============================================================
-  if (!selectedStation) {
+  const handleDemoMode = useCallback(() => {
+    setIsDemo(true);
+  }, []);
+
+  // Station selector
+  if (!selectedStation && !isDemo) {
     return (
       <>
         <AnimationStyles />
@@ -766,21 +868,20 @@ function DigitalSignageInner() {
           stations={stations}
           onSelect={handleStationSelect}
           loadingStations={loadingStations}
+          onDemoMode={handleDemoMode}
         />
       </>
     );
   }
 
-  // ============================================================
-  // Loading state (no data yet)
-  // ============================================================
-  if (loading && !displayData) {
+  // Loading
+  if (loading && !displayData && !isDemo) {
     return (
-      <div className={`h-screen flex flex-col bg-[#0F172A] ${kioskHidden ? 'kiosk-cursor-hidden' : ''}`}>
+      <div className={`h-screen flex flex-col bg-slate-900 ${kioskHidden ? 'kiosk-cursor-hidden' : ''}`}>
         <AnimationStyles />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-white/20 border-t-rose-500 rounded-full animate-spin" />
             <p className="text-white/60 text-lg md:text-2xl font-semibold">
               Chargement des départs...
             </p>
@@ -792,13 +893,24 @@ function DigitalSignageInner() {
   }
 
   // Derive data
-  const stationName = displayData?.station?.name || selectedStation.name;
+  const stationName = isDemo
+    ? 'GARE ROUTIÈRE PETERS'
+    : (displayData?.station?.name || selectedStation?.name || 'Gare Routière');
+
   const dayName = displayData?.dayName || (() => {
     const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-    return days[new Date().getDay()];
+    const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    const now = new Date();
+    return `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   })();
-  const departures = displayData?.departures || [];
-  const messages = displayData?.messages || [];
+
+  const departures = isDemo
+    ? generateMockData().departures
+    : (displayData?.departures || []);
+
+  const messages = isDemo
+    ? generateMockData().messages
+    : (displayData?.messages || []);
 
   return (
     <div
@@ -806,26 +918,20 @@ function DigitalSignageInner() {
     >
       <AnimationStyles />
 
-      {/* Connection Lost Banner */}
       {connectionLost && <ConnectionLostBanner />}
 
-      {/* 2. Header */}
-      <StationHeader stationName={stationName} clock={clock} dayName={dayName} />
+      <StationHeader stationName={stationName} clock={clock} dayName={dayName} isDemo={isDemo} />
 
-      {/* 3. Ticker */}
       <ScrollingTicker messages={messages} />
 
-      {/* 4. Departures Table */}
       <DeparturesTable
         departures={departures}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
 
-      {/* 5. Footer */}
       <SignageFooter />
 
-      {/* 7. Fullscreen Button */}
       <FullscreenButton />
     </div>
   );

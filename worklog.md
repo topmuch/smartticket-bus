@@ -1385,3 +1385,41 @@ Stage Summary:
 - Public display: station selector, real-time clock, departure board, scrolling ticker
 - All endpoints routed correctly through Caddy gateway (XTransformPort=3001)
 - ESLint: 0 errors
+
+---
+Task ID: COMPUTICKET-LANDING-SIGNAGE
+Agent: Main Orchestrator
+Task: Create Computicket-style Landing Page + Digital Signage Demo Page
+
+Work Log:
+- Read existing project structure, components, and page.tsx
+- Generated 7 AI images for hero background and 6 bus carrier cards (1344x768)
+- Created src/components/computicket/ directory with 6 new components:
+  1. header.tsx: Sticky navigation with white bg, rose/orange gradient logo, mobile menu, staff dropdown
+  2. hero-section.tsx: Full-screen hero with background image, gradient overlay, search form (trip type, from/to, date, passengers)
+  3. bus-carriers-section.tsx: 6 bus line cards with images, badges (NATIONAL/LIMITED/PREMIUM/COASTAL/ECONOMIQUE/URBAIN), features
+  4. how-it-works-section.tsx: 3-step booking flow (Search/Book/Travel) with icons and connector line
+  5. help-section.tsx: Dark bg section with station assistance info, contact cards, features
+  6. footer.tsx: 3-column footer (Brand, Contact, Links) with social icons
+- Updated src/components/display/digital-signage.tsx:
+  - Added demo mode with mock data generator (10 lines, random statuses, realistic times)
+  - Added MODE DEMO button on station selector
+  - Added demo badge in header when in demo mode
+  - Added boarding status type with pulsing animation
+  - Added imminent row pulse animation
+  - Fixed React 19 lint errors (no setState in effect, no ref access during render)
+- Updated src/app/page.tsx:
+  - Replaced old portal components with new Computicket-style components
+  - Kept LiveScheduleDemo for horaires section
+  - Maintained auth routing logic (LandingPage/AppShell/DisplayPageWrapper)
+
+Stage Summary:
+- 6 new components in src/components/computicket/
+- 1 updated component: digital-signage.tsx (demo mode)
+- 1 updated: page.tsx (new landing page)
+- 7 AI-generated images in public/images/
+- ESLint: 0 errors
+- Both pages load successfully (200 status)
+- Demo signage accessible via /?display=peters&mode=demo
+- All existing functionality preserved (auth, admin, etc.)
+
