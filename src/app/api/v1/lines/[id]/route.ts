@@ -71,6 +71,7 @@ export async function GET(
       id: line.id,
       number: line.number,
       name: line.name,
+      description: line.description || '',
       color: line.color,
       is_active: line.isActive ? 1 : 0,
       stops_count: line.lineStops.length,

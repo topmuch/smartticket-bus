@@ -103,13 +103,14 @@ model Fare {
 // ============================================
 
 model Line {
-  id        String   @id @default(cuid())
-  number    String   @unique // "L1", "L2", "A", "B", etc.
-  name      String   // "Ligne Centrale", "Express Est-Ouest"
-  color     String   @default("#16a34a") // Line color
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  number      String   @unique // "L1", "L2", "A", "B", etc.
+  name        String   // "Ligne Centrale", "Express Est-Ouest"
+  description String?  // Brief description of the line route
+  color       String   @default("#16a34a") // Line color
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   lineStops LineStop[]

@@ -22,6 +22,7 @@ export async function GET() {
       id: l.id,
       number: l.number,
       name: l.name,
+      description: l.description || '',
       color: l.color,
       is_active: l.isActive ? 1 : 0,
       stops_count: l._count.lineStops,

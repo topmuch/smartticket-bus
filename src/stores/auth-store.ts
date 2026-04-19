@@ -17,10 +17,13 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  hasHydrated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshAuth: () => Promise<boolean>;
   updateTokens: (accessToken: string, refreshToken: string) => void;
+  validateSession: () => Promise<boolean>;
+  setHasHydrated: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -30,6 +33,11 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      hasHydrated: false,
+
+      setHasHydrated: () => {
+        set({ hasHydrated: true });
+      },
 
       login: async (email: string, password: string) => {
         try {
@@ -113,6 +121,50 @@ export const useAuthStore = create<AuthState>()(
       updateTokens: (accessToken: string, refreshToken: string) => {
         set({ accessToken, refreshToken });
       },
+
+      /**
+       * Validate current session by checking the local auth/me endpoint.
+       * Clears auth state if the session is invalid.
+       * Uses the local Next.js route (not Express backend) so it works standalone.
+       */
+      validateSession: async () => {
+        const { accessToken, logout } = get();
+        if (!accessToken) {
+          set({ isAuthenticated: false, hasHydrated: true });
+          return false;
+        }
+
+        try {
+          // Use local Next.js /api/auth/me directly (not via toBackendUrl)
+          const res = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.data) {
+              set({
+                user: data.data,
+                isAuthenticated: true,
+                hasHydrated: true,
+              });
+              return true;
+            }
+          }
+
+          // Token is invalid - clear auth state
+          logout();
+          set({ hasHydrated: true });
+          return false;
+        } catch {
+          // Network error - keep current state but mark as hydrated
+          // so the page renders. Auth will be validated again on API calls.
+          set({ hasHydrated: true });
+          return false;
+        }
+      },
     }),
     {
       name: 'smartticket-auth',
@@ -122,6 +174,17 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error('Auth store rehydration error:', error);
+          }
+          // Mark as hydrated after rehydration completes
+          if (state) {
+            state.hasHydrated = true;
+          }
+        };
+      },
     }
   )
 );

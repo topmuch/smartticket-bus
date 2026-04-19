@@ -241,22 +241,23 @@ async function seed() {
   console.log('🚌 Creating lines...');
 
   const linesData = [
-    { number: 'L1', name: 'Ligne Centre-Nord', color: '#16a34a' },
-    { number: 'L2', name: 'Ligne Centre-Est', color: '#2563eb' },
-    { number: 'L3', name: 'Ligne Centre-Sud', color: '#d97706' },
-    { number: 'L4', name: 'Ligne Nord-Ouest', color: '#dc2626' },
-    { number: 'L5', name: 'Ligne Est-Sud', color: '#7c3aed' },
-    { number: 'EXP1', name: 'Express Aéroport-Centre', color: '#0891b2' },
+    { number: 'L1', name: 'Ligne Centre-Nord', description: 'Gare Routière → Université via Hôpital et Parcelles Assainies', color: '#16a34a' },
+    { number: 'L2', name: 'Ligne Centre-Est', description: 'Gare Routière → Grand Yoff via Patte d\'Oie et Liberté', color: '#2563eb' },
+    { number: 'L3', name: 'Ligne Centre-Sud', description: 'Gare Routière → Bel Air via Médina et Fann Hock', color: '#d97706' },
+    { number: 'L4', name: 'Ligne Nord-Ouest', description: 'Université → Yoff via Ouakam et Ngor', color: '#dc2626' },
+    { number: 'L5', name: 'Ligne Est-Sud', description: 'Grand Yoff → Bel Air via Liberté et Médina', color: '#7c3aed' },
+    { number: 'EXP1', name: 'Express Aéroport-Centre', description: 'Liaison rapide Aéroport - Centre-ville', color: '#0891b2' },
   ];
 
   const createdLines: any[] = [];
   for (const ld of linesData) {
     const line = await db.line.upsert({
       where: { number: ld.number },
-      update: {},
+      update: { description: ld.description },
       create: {
         number: ld.number,
         name: ld.name,
+        description: ld.description,
         color: ld.color,
         isActive: true,
       },
@@ -490,8 +491,10 @@ async function seed() {
     const qrString = generateQRToken(qrPayload);
     const [token, signature] = [qrString, ''];
 
-    await db.ticket.create({
-      data: {
+    await db.ticket.upsert({
+      where: { ticketNumber: td.ticketNumber },
+      update: {},
+      create: {
         ...td,
         qrToken: token,
         qrSignature: signature,

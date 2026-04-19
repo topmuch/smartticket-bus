@@ -1190,3 +1190,37 @@ Stage Summary:
 - Public portal endpoints now served by Next.js API routes directly (no Express backend dependency)
 - All authenticated/admin endpoints still route to Express backend via XTransformPort=3001
 - ESLint: 0 errors
+---
+Task ID: HOMEPAGE-FIX
+Agent: Main Orchestrator
+Task: Fix homepage display issue - auth hydration race + stale state + missing fields
+
+Work Log:
+- Investigated homepage rendering: all API endpoints return 200, database seeded with data (5 zones, 6 lines, 15 stops, 39 schedules, 15 fares)
+- Identified root cause: Zustand auth store hydration race condition
+  - On page load, persist middleware rehydrates from localStorage with potentially stale auth state
+  - If user was previously logged in (even with expired tokens), isAuthenticated=true causes AppShell to render instead of PublicPortal
+  - AppShell returns null if user is null during hydration, showing blank page
+- Fixed auth-store.ts:
+  - Added hasHydrated flag to track rehydration state
+  - Added setHasHydrated() method
+  - Added onRehydrateStorage callback in persist config
+  - Added validateSession() method that calls local /api/auth/me to verify token validity
+  - On invalid token, clears auth state (logout) so public portal renders
+- Fixed page.tsx:
+  - Shows LoadingScreen while auth store rehydrates (prevents flash)
+  - Calls validateSession() on mount if user appears authenticated
+  - Falls back to setHasHydrated() after 500ms timeout
+- Added Line.description field to Prisma schema (was missing, caused undefined in UI)
+- Updated /api/v1/lines and /api/v1/lines/[id] to include description in response
+- Updated seed.ts to include line descriptions and use upsert for tickets (prevents duplicate errors)
+- Added custom-scrollbar CSS class (used by schedules-section but not defined)
+- Regenerated Prisma Client and re-seeded database
+- ESLint: 0 errors
+
+Stage Summary:
+- Homepage now properly shows: loading screen → auth check → public portal (or app shell if valid session)
+- No more blank page from stale auth state
+- Lines now display descriptions in the public portal
+- Database fully seeded with descriptions
+- All fixes verified: lint clean, dev server starts, APIs return data
