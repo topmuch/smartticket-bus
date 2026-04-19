@@ -1351,3 +1351,37 @@ Stage Summary:
 - Kiosk mode: cursor hides after 10s, fullscreen API support
 - Polling: 30s normal refresh, 5s auto-retry on connection loss
 - ESLint: 0 errors
+
+---
+Task ID: DIGITAL-SIGNAGE-VERIFY
+Agent: Main Orchestrator
+Task: Verify and fix Digital Signage module (continued from previous session)
+
+Work Log:
+- Previous session had already fully implemented all 4 steps of the Digital Signage module
+- Step 1 ✅: SQL Migration — 3 tables (stations, departures, display_messages) in db.js
+- Step 2 ✅: Backend API — displayController.js (CRUD + public display + CSV import) + routes
+- Step 3 ✅: Frontend Admin — station-manager.tsx (4 tabs: Gares, Départs, Import CSV, Messages)
+- Step 4 ✅: Frontend Display — digital-signage.tsx (fullscreen, polling, kiosk mode, ticker)
+- Verified all Zod validation schemas for display endpoints
+- Verified multer + csv-parser dependencies installed
+- Verified app-shell.tsx includes "Affichage Gare" nav item for SUPERADMIN
+- Verified page.tsx handles ?display= query parameter for signage mode
+- Verified api.ts routing for display endpoints (uses XTransformPort=3001)
+- Fixed seed data: added Sunday (day_of_week=0) departures for all 3 stations (43 new departures)
+  - Previously only had Monday/Tuesday departures → display showed empty on Sundays
+- Re-seeded database: 226 total departures across 3 stations, all 7 days covered
+- Started backend server, tested all display API endpoints directly:
+  - GET /api/v1/public/stations → 3 stations ✅
+  - GET /api/v1/public/display/stn-001 → 5 departures + 6 messages ✅
+- Started Next.js dev server, verified compilation: ESLint 0 errors, HTTP 200 on /
+- Caddy gateway configuration verified for XTransformPort proxying
+
+Stage Summary:
+- Digital Signage module 100% complete and verified
+- 226 departures across 3 stations (Peters, Liberté, Sandaga)
+- 4 display messages (2 urgent, 1 normal, 1 global)
+- Admin panel: 4 tabs (Gares, Départs, Import CSV, Messages)
+- Public display: station selector, real-time clock, departure board, scrolling ticker
+- All endpoints routed correctly through Caddy gateway (XTransformPort=3001)
+- ESLint: 0 errors
