@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { toBackendUrl } from '@/lib/api';
 
 export type UserRole = 'SUPERADMIN' | 'OPERATOR' | 'CONTROLLER';
 
@@ -41,9 +40,8 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email: string, password: string) => {
         try {
-          // Express backend login: POST /api/auth/login
-          // Response: { success, data: { user, tokens: { access_token, refresh_token } } }
-          const res = await fetch(toBackendUrl('/api/auth/login'), {
+          // Use local Next.js API route directly (not Express backend)
+          const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
@@ -55,10 +53,9 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: data.error || 'Erreur de connexion' };
           }
 
-          // Express auth response uses nested tokens object
-          const tokens = data.data.tokens || {};
-          const accessToken = tokens.access_token || data.data.accessToken;
-          const refreshToken = tokens.refresh_token || data.data.refreshToken;
+          // Next.js auth response: { accessToken, refreshToken }
+          const accessToken = data.data.accessToken;
+          const refreshToken = data.data.refreshToken;
 
           set({
             user: data.data.user,
@@ -87,13 +84,11 @@ export const useAuthStore = create<AuthState>()(
         if (!refreshToken) return false;
 
         try {
-          // Express backend refresh: POST /api/auth/refresh
-          // Body: { refresh_token } (not { refreshToken })
-          // Response: { success, data: { access_token } }
-          const res = await fetch(toBackendUrl('/api/auth/refresh'), {
+          // Use local Next.js API route directly
+          const res = await fetch('/api/auth/refresh', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh_token: refreshToken }),
+            body: JSON.stringify({ refreshToken }),
           });
 
           const data = await res.json();
@@ -103,13 +98,11 @@ export const useAuthStore = create<AuthState>()(
             return false;
           }
 
-          // Express refresh response uses access_token (not accessToken)
-          const newAccessToken = data.data.access_token || data.data.accessToken;
+          const newAccessToken = data.data.accessToken || data.data.access_token;
 
           set({
             accessToken: newAccessToken,
-            // Express refresh may not return a new refresh token
-            refreshToken: data.data.refresh_token || data.data.refreshToken || refreshToken,
+            refreshToken: data.data.refreshToken || data.data.refresh_token || refreshToken,
           });
 
           return true;
