@@ -121,40 +121,211 @@
   }
 }
 
-/* Print Styles - Ticket Receipt */
+/* ═══════════════════════════════════════════════════════════
+   SmartTicketQR — Cross-Platform Print Styles
+   Supports: Thermal 58mm/80mm, A4/A5, Browser, PDF
+   ═══════════════════════════════════════════════════════════ */
+
 @media print {
-  /* Hide everything except the ticket dialog */
-  body > *:not([data-print-receipt]) {
+  /* ── Global Print Reset ── */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body {
+    background: white !important;
+    color: #1a1a1a !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Hide non-printable elements ── */
+  .no-print,
+  [data-no-print],
+  nav,
+  header,
+  footer:not(.print-footer),
+  .print-hide {
     display: none !important;
   }
 
-  /* Show the dialog overlay content */
+  /* ── Show print-only elements ── */
+  .print-only {
+    display: block !important;
+  }
+
+  /* ── Show the dialog overlay content ── */
   [data-radix-popper-content-wrapper],
   [data-state="open"] {
     display: block !important;
     position: static !important;
   }
 
-  /* Format the receipt */
-  .print-receipt {
+  /* ── Thermal 58mm Ticket Format ── */
+  .print-thermal-58mm {
     display: block !important;
-    width: 80mm;
-    margin: 0 auto;
-    padding: 4mm;
-    font-size: 12px;
+    width: 58mm !important;
+    min-height: auto !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    font-size: 9px !important;
     color: #000 !important;
     background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 
+  .print-thermal-58mm img,
+  .print-thermal-58mm canvas {
+    max-width: 40mm !important;
+    max-height: 40mm !important;
+  }
+
+  /* ── Thermal 80mm Ticket Format ── */
+  .print-thermal-80mm,
+  .print-receipt {
+    display: block !important;
+    width: 80mm !important;
+    min-height: auto !important;
+    margin: 0 auto !important;
+    padding: 3mm !important;
+    font-size: 10px !important;
+    color: #000 !important;
+    background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-thermal-80mm img,
+  .print-thermal-80mm canvas,
   .print-receipt img {
     max-width: 60mm !important;
     max-height: 60mm !important;
   }
 
-  /* Hide non-receipt buttons */
-  .print-hide {
-    display: none !important;
+  /* ── A4 Report Format ── */
+  .print-a4 {
+    display: block !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 10mm !important;
+    font-size: 11px !important;
+    color: #000 !important;
+    background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
   }
+
+  /* ── A5 Receipt Format ── */
+  .print-a5 {
+    display: block !important;
+    width: 100% !important;
+    max-width: 148mm !important;
+    margin: 0 auto !important;
+    padding: 8mm !important;
+    font-size: 10px !important;
+    color: #000 !important;
+    background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* ── Page Break Controls ── */
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .page-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* ── Page Size Settings ── */
+  @page thermal-58mm {
+    size: 58mm auto;
+    margin: 0;
+  }
+
+  @page thermal-80mm {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  @page a4-receipt {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @page a5-receipt {
+    size: A5 portrait;
+    margin: 8mm;
+  }
+
+  /* ── Table Print Optimization ── */
+  table {
+    border-collapse: collapse !important;
+  }
+
+  table th,
+  table td {
+    border: 1px solid #ddd !important;
+    padding: 2px 4px !important;
+  }
+
+  table thead {
+    display: table-header-group !important;
+  }
+
+  table tr {
+    page-break-inside: avoid !important;
+  }
+
+  /* ── Link styling ── */
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  /* ── Badge / tag styling ── */
+  .print-badge {
+    display: inline-block;
+    padding: 1px 4px;
+    border: 1px solid #999;
+    border-radius: 2px;
+    font-size: 8px;
+  }
+}
+
+/* ── Print Preview Mode (not @media print, for UI preview) ── */
+.print-preview-thermal-58 {
+  width: 220px;
+  font-family: 'Courier New', Courier, monospace;
+  background: white;
+}
+
+.print-preview-thermal-80 {
+  width: 302px;
+  font-family: 'Courier New', Courier, monospace;
+  background: white;
+}
+
+.print-preview-a4 {
+  max-width: 794px;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: white;
 }
 
 /* Custom Scrollbar */

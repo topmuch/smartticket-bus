@@ -25,3 +25,48 @@ Stage Summary:
   - src/components/smartticket/views/qr-scanner.tsx (rewrote handleScan for online-first validation)
   - src/components/smartticket/views/sales-history.tsx (enhanced with validity dates, zone fallback)
   - src/components/smartticket/app-shell.tsx (renamed OPERATOR tab)
+
+---
+Task ID: 2
+Agent: main
+Task: Implement cross-platform printing module for SmartTicketQR
+
+Work Log:
+- Created comprehensive print type system (src/lib/print/types.ts) with PrintJob, PrinterConfig, EnvironmentInfo, PrintLogEntry types
+- Built environment detection module (src/lib/print/environment.ts) for Android PWA, Windows desktop, browser detection with best print method selection
+- Implemented core PrintService (src/lib/print/print-service.ts) as singleton with ticket/receipt printing, browser print via window.open, PDF generation via server API, automatic fallback chain
+- Built PrintQueueManager (src/lib/print/print-queue.ts) with retry logic (max 3 retries), job status tracking, React useSyncExternalStore integration
+- Created print utilities (src/lib/print/print-utils.ts) with normalizeTicketForPrint, normalizeReceiptForPrint, French formatting helpers
+- Built PrintPreviewModal React component with printer type selection (browser, thermal 58mm/80mm, laser A4, PDF) and preview functionality
+- Built PrintQueuePanel with real-time job status using useSyncExternalStore
+- Built QuickPrintButton for one-click printing with auto-fallback to preview dialog
+- Built DownloadPdfButton with dual-endpoint fallback (/api/print/ticket → /api/tickets/[id]/pdf)
+- Built TicketThermalPreview component with realistic thermal ticket rendering (58mm and 80mm variants)
+- Built ReceiptPreview component for cash session close receipts with financial summary and ticket details
+- Built ReportPreview component for A4 admin reports with summary cards, tables, and sections
+- Created server-side PDF generation API (GET /api/print/ticket) using jsPDF with 80mm ticket format
+- Created server-side receipt PDF API (GET /api/print/receipt) using jsPDF with full A4 receipt format including ticket detail table
+- Created print status API (GET/POST /api/print/status) for queue monitoring
+- Enhanced globals.css with comprehensive @media print styles for thermal 58mm, 80mm, A4, A5 formats with page break controls
+- Integrated print system into ticket-card.tsx with print dialog modal, direct print button, and PDF download button
+- Integrated print system into cash-session.tsx with receipt printing from session history
+- Added print monitoring card to admin dashboard with PrintQueuePanel access
+
+Stage Summary:
+- Complete cross-platform printing system implemented with:
+  - 5 print methods: browser, thermal_58mm, thermal_80mm, laser_a4, pdf
+  - Automatic fallback chain (browser → pdf → manual preview)
+  - Print queue with retry logic and real-time status tracking
+  - Server-side PDF generation for tickets and receipts
+  - Print monitoring in admin dashboard
+  - Print CSS optimized for all paper sizes
+- New files created:
+  - src/lib/print/types.ts, environment.ts, print-service.ts, print-queue.ts, print-utils.ts, index.ts
+  - src/components/print/print-dialog.tsx, ticket-printer.tsx, receipt-printer.tsx, report-printer.tsx, index.ts
+  - src/app/api/print/ticket/route.ts, receipt/route.ts, status/route.ts
+- Files modified:
+  - src/app/globals.css (enhanced print CSS)
+  - src/components/smartticket/views/ticket-card.tsx (print integration)
+  - src/components/smartticket/views/cash-session.tsx (receipt printing)
+  - src/components/smartticket/views/admin-dashboard.tsx (print monitoring)
+- Zero lint errors, clean build

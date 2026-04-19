@@ -21,6 +21,7 @@ import {
   RefreshCw,
   LogOut,
   TrendingUp,
+  Printer,
 } from 'lucide-react';
 import {
   Card,
@@ -44,6 +45,7 @@ import { apiFetch, formatCurrency } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { getRoleLabel, getRoleColor } from '@/lib/api';
 import type { ViewId } from '../app-shell';
+import { PrintQueuePanel } from '@/components/print';
 
 // ─── Data Types (unchanged) ────────────────────────────────────
 
@@ -203,6 +205,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showPrintQueue, setShowPrintQueue] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Data fetching (same logic as before)
@@ -648,6 +651,64 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (view: ViewId) => v
                 </Card>
               </div>
             )}
+
+            {/* ─── Print System Status ─── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-primary" />
+                    Système d&apos;Impression
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPrintQueue(true)}
+                    className="text-xs gap-1.5"
+                  >
+                    File d&apos;attente
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-2">
+                      <Printer className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <p className="text-xs font-medium">Impression Rapide</p>
+                    <p className="text-[10px] text-muted-foreground">Ticket thermique navigateur</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-2">
+                      <Printer className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <p className="text-xs font-medium">Multi-format</p>
+                    <p className="text-[10px] text-muted-foreground">58mm, 80mm, A4, PDF</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mx-auto mb-2">
+                      <Printer className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <p className="text-xs font-medium">Reçu de Caisse</p>
+                    <p className="text-[10px] text-muted-foreground">Impression A4 détaillée</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-2">
+                      <Printer className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <p className="text-xs font-medium">PDF Server</p>
+                    <p className="text-[10px] text-muted-foreground">Génération PDF serveur</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  Système d&apos;impression actif — Fallback automatique en cas d&apos;erreur
+                </div>
+              </CardContent>
+            </Card>
+
+            <PrintQueuePanel open={showPrintQueue} onOpenChange={setShowPrintQueue} />
           </div>
         </div>
       </div>

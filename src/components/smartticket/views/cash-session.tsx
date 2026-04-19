@@ -41,7 +41,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   History,
+  Printer,
 } from 'lucide-react';
+import { PrintPreviewModal, ReceiptPreview } from '@/components/print';
+import { normalizeReceiptForPrint, type PrintReceiptData } from '@/lib/print';
+import { toast } from 'sonner';
 
 interface CashSession {
   id: string;
@@ -74,6 +78,26 @@ export default function CashSessionView() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [closingCash, setClosingCash] = useState('');
   const [closingNotes, setClosingNotes] = useState('');
+
+  // Print receipt
+  const [printReceiptData, setPrintReceiptData] = useState<PrintReceiptData | null>(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+
+  const handlePrintReceipt = useCallback(async (sessionId: string) => {
+    try {
+      // Fetch session with tickets for receipt
+      const res = await apiFetch<any>('/api/cash-sessions/' + sessionId);
+      if (res.success && res.data) {
+        const receiptData = normalizeReceiptForPrint(res.data);
+        setPrintReceiptData(receiptData);
+        setShowPrintDialog(true);
+      } else {
+        toast.error('Erreur', { description: res.error || 'Impossible de charger les données du reçu.' });
+      }
+    } catch {
+      toast.error('Erreur réseau', { description: 'Vérifiez votre connexion.' });
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -297,6 +321,19 @@ export default function CashSessionView() {
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                         {formatDuration(session.openedAt, session.closedAt)}
                       </TableCell>
+                      {session.status === 'CLOSED' && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            onClick={() => handlePrintReceipt(session.id)}
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span className="hidden xl:inline">Imprimer</span>
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -479,6 +516,17 @@ export default function CashSessionView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print Receipt Dialog */}
+      {printReceiptData && (
+        <PrintPreviewModal
+          open={showPrintDialog}
+          onOpenChange={setShowPrintDialog}
+          type="receipt"
+          data={printReceiptData}
+          defaultPrinterType="laser_a4"
+        />
+      )}
     </div>
   );
 }
