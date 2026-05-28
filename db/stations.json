@@ -1,0 +1,55 @@
+{
+  "stations": [
+    {
+      "id": "station-peters-001",
+      "name": "Gare Routière Peters",
+      "city": "Dakar",
+      "timezone": "Africa/Dakar",
+      "slug": "gare-routiere-peters",
+      "isActive": true,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "departures": [
+    {
+      "id": "dep-001",
+      "stationId": "station-peters-001",
+      "lineId": "",
+      "scheduledTime": "08:00",
+      "platform": 1,
+      "scheduleType": "departure",
+      "dayOfWeek": 1,
+      "destination": "Dakar - Centre-ville",
+      "delayMinutes": 0,
+      "status": "on_time",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "dep-002",
+      "stationId": "station-peters-001",
+      "lineId": "",
+      "scheduledTime": "08:30",
+      "platform": 2,
+      "scheduleType": "departure",
+      "dayOfWeek": 1,
+      "destination": "Mbour - Saly",
+      "delayMinutes": 0,
+      "status": "on_time",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "dep-003",
+      "stationId": "station-peters-001",
+      "lineId": "",
+      "scheduledTime": "09:00",
+      "platform": 3,
+      "scheduleType": "departure",
+      "dayOfWeek": 1,
+      "destination": "Thiès - Centre",
+      "delayMinutes": 0,
+      "status": "on_time",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "messages": []
+}
