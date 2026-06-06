@@ -30,7 +30,8 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL=file:/app/data/smartticket.db
 
-# Start command - push schema, create admin, seed and start server
-COPY entrypoint-coolify.sh /app/entrypoint-coolify.sh
+# Make entrypoint executable
 RUN chmod +x /app/entrypoint-coolify.sh
+
+# Start command - push schema, create admin, seed and start server
 CMD ["/app/entrypoint-coolify.sh"]
