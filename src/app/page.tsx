@@ -1,5 +1,11 @@
-import ClientHome from './client-home';
+'use client';
+
+import dynamic from 'next/dynamic';
+
+const AppShell = dynamic(() => import('@/components/smartticket/app-shell'), {
+  ssr: false,
+});
 
 export default function Page() {
-  return <ClientHome />;
+  return <AppShell />;
 }

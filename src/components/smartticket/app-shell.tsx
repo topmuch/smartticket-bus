@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useAuthStore, type UserRole } from '@/stores/auth-store';
+import { useAuthStore, type UserRole, type User } from '@/stores/auth-store';
 import { getRoleLabel, getRoleColor } from '@/lib/api';
 import { AdminDashboard } from './views/admin-dashboard';
 import ZonesFares from './views/zones-fares';
@@ -126,26 +126,20 @@ function PlaceholderView({ title }: { title: string }) {
   );
 }
 
+const FALLBACK_USER: User = {
+  id: 'default-admin',
+  email: 'admin@smartticket.bus',
+  name: 'Super Administrateur',
+  role: 'SUPERADMIN',
+  phone: '+221 77 123 00 00',
+};
+
 export function AppShell() {
   const { user, logout } = useAuthStore();
-  const [currentView, setCurrentView] = useState<ViewId>(
-    user?.role === 'SUPERADMIN'
-      ? 'dashboard'
-      : user?.role === 'OPERATOR'
-        ? 'sell-regional'
-        : 'scan-qr'
-  );
+  const [currentView, setCurrentView] = useState<ViewId>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Auth bypass — always use SUPERADMIN
-  const currentUser = user || {
-    id: 'default-admin',
-    email: 'admin@smartticket.bus',
-    name: 'Super Administrateur',
-    role: 'SUPERADMIN' as UserRole,
-    phone: '+221 77 123 00 00',
-  };
-
+  const currentUser = user || FALLBACK_USER;
   const navItems = navByRole[currentUser.role] || [];
 
   const handleNavClick = (viewId: ViewId) => {
