@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type UserRole = 'SUPERADMIN' | 'OPERATOR' | 'CONTROLLER';
 
@@ -10,6 +9,14 @@ export interface User {
   role: UserRole;
   phone?: string;
 }
+
+const defaultUser: User = {
+  id: 'default-admin',
+  email: 'admin@smartticket.bus',
+  name: 'Super Administrateur',
+  role: 'SUPERADMIN',
+  phone: '+221 77 123 00 00',
+};
 
 interface AuthState {
   user: User | null;
@@ -25,173 +32,92 @@ interface AuthState {
   setHasHydrated: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: {
-        id: 'default-admin',
-        email: 'admin@smartticket.bus',
-        name: 'Super Administrateur',
-        role: 'SUPERADMIN' as UserRole,
-        phone: '+221 77 123 00 00',
-      },
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  user: defaultUser,
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: true,
+  hasHydrated: true,
+
+  setHasHydrated: () => {
+    set({ hasHydrated: true });
+  },
+
+  login: async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        return { success: false, error: data.error || 'Erreur de connexion' };
+      }
+
+      const accessToken = data.data.accessToken;
+      const refreshToken = data.data.refreshToken;
+
+      set({
+        user: data.data.user,
+        accessToken,
+        refreshToken,
+        isAuthenticated: true,
+      });
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: 'Erreur réseau. Vérifiez votre connexion.' };
+    }
+  },
+
+  logout: () => {
+    set({
+      user: null,
       accessToken: null,
       refreshToken: null,
-      isAuthenticated: true,
-      hasHydrated: true,
+      isAuthenticated: false,
+    });
+  },
 
-      setHasHydrated: () => {
-        set({ hasHydrated: true });
-      },
+  refreshAuth: async () => {
+    const { refreshToken } = get();
+    if (!refreshToken) return false;
 
-      login: async (email: string, password: string) => {
-        try {
-          // Use local Next.js API route directly (not Express backend)
-          const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-          });
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
 
-          const data = await res.json();
+      const data = await res.json();
 
-          if (!data.success) {
-            return { success: false, error: data.error || 'Erreur de connexion' };
-          }
+      if (!data.success) {
+        get().logout();
+        return false;
+      }
 
-          // Next.js auth response: { accessToken, refreshToken }
-          const accessToken = data.data.accessToken;
-          const refreshToken = data.data.refreshToken;
+      const newAccessToken = data.data.accessToken || data.data.access_token;
 
-          set({
-            user: data.data.user,
-            accessToken,
-            refreshToken,
-            isAuthenticated: true,
-          });
+      set({
+        accessToken: newAccessToken,
+        refreshToken: data.data.refreshToken || data.data.refresh_token || refreshToken,
+      });
 
-          return { success: true };
-        } catch (error) {
-          return { success: false, error: 'Erreur réseau. Vérifiez votre connexion.' };
-        }
-      },
-
-      logout: () => {
-        set({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-          isAuthenticated: false,
-        });
-      },
-
-      refreshAuth: async () => {
-        const { refreshToken } = get();
-        if (!refreshToken) return false;
-
-        try {
-          // Use local Next.js API route directly
-          const res = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken }),
-          });
-
-          const data = await res.json();
-
-          if (!data.success) {
-            get().logout();
-            return false;
-          }
-
-          const newAccessToken = data.data.accessToken || data.data.access_token;
-
-          set({
-            accessToken: newAccessToken,
-            refreshToken: data.data.refreshToken || data.data.refresh_token || refreshToken,
-          });
-
-          return true;
-        } catch {
-          return false;
-        }
-      },
-
-      updateTokens: (accessToken: string, refreshToken: string) => {
-        set({ accessToken, refreshToken });
-      },
-
-      /**
-       * Validate current session by checking the local auth/me endpoint.
-       * Clears auth state if the session is invalid.
-       * Uses the local Next.js route (not Express backend) so it works standalone.
-       */
-      validateSession: async () => {
-        const { accessToken, logout } = get();
-        if (!accessToken) {
-          set({ isAuthenticated: false, hasHydrated: true });
-          return false;
-        }
-
-        try {
-          // Use local Next.js /api/auth/me directly (not via toBackendUrl)
-          const res = await fetch('/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-            },
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.data) {
-              set({
-                user: data.data,
-                isAuthenticated: true,
-                hasHydrated: true,
-              });
-              return true;
-            }
-          }
-
-          // Token is invalid - clear auth state
-          logout();
-          set({ hasHydrated: true });
-          return false;
-        } catch {
-          // Network error - keep current state but mark as hydrated
-          // so the page renders. Auth will be validated again on API calls.
-          set({ hasHydrated: true });
-          return false;
-        }
-      },
-    }),
-    {
-      name: 'smartticket-auth-v2',
-      partialize: (state) => ({
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
-      onRehydrateStorage: () => {
-        return (state, error) => {
-          if (error) {
-            console.error('Auth store rehydration error:', error);
-          }
-          // Always force admin access
-          if (state) {
-            state.user = {
-              id: 'default-admin',
-              email: 'admin@smartticket.bus',
-              name: 'Super Administrateur',
-              role: 'SUPERADMIN',
-              phone: '+221 77 123 00 00',
-            };
-            state.isAuthenticated = true;
-            state.hasHydrated = true;
-          }
-        };
-      },
+      return true;
+    } catch {
+      return false;
     }
-  )
-);
+  },
+
+  updateTokens: (accessToken: string, refreshToken: string) => {
+    set({ accessToken, refreshToken });
+  },
+
+  validateSession: async () => {
+    return true;
+  },
+}));
