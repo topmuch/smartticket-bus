@@ -2,7 +2,7 @@
 FROM node:20-alpine
 
 # Install required packages
-RUN apk add --no-cache git libc6-compat sqlite
+RUN apk add --no-cache libc6-compat sqlite
 RUN npm install -g bun
 
 WORKDIR /app
@@ -33,5 +33,5 @@ ENV DATABASE_URL=file:/app/data/smartticket.db
 # Make entrypoint executable
 RUN chmod +x /app/entrypoint-coolify.sh
 
-# Start command - push schema, create admin, seed and start server
+# Start command
 CMD ["/app/entrypoint-coolify.sh"]
