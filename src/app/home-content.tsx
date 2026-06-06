@@ -59,32 +59,15 @@ function DisplayPage() {
 }
 
 function HomeInner() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const hasHydrated = useAuthStore((s) => s.hasHydrated);
-  const validateSession = useAuthStore((s) => s.validateSession);
   const searchParams = useSearchParams();
   const displayStation = searchParams.get('display');
-
-  useEffect(() => {
-    if (hasHydrated && isAuthenticated) {
-      validateSession();
-    }
-  }, [hasHydrated, isAuthenticated, validateSession]);
-
-  // Wait for Zustand store to rehydrate from localStorage before rendering
-  if (!hasHydrated) {
-    return <LoadingScreen />;
-  }
 
   if (displayStation) {
     return <DisplayPage />;
   }
 
-  if (isAuthenticated) {
-    return <AppShell />;
-  }
-
-  return <LandingPage />;
+  // Auth bypassed — always show dashboard as SUPERADMIN
+  return <AppShell />;
 }
 
 export default function HomeContent() {

@@ -137,9 +137,16 @@ export function AppShell() {
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  if (!user) return null;
+  // Auth bypass — always use SUPERADMIN
+  const currentUser = user || {
+    id: 'default-admin',
+    email: 'admin@smartticket.bus',
+    name: 'Super Administrateur',
+    role: 'SUPERADMIN' as UserRole,
+    phone: '+221 77 123 00 00',
+  };
 
-  const navItems = navByRole[user.role] || [];
+  const navItems = navByRole[currentUser.role] || [];
 
   const handleNavClick = (viewId: ViewId) => {
     setCurrentView(viewId);
@@ -235,11 +242,11 @@ export function AppShell() {
                 <Button variant="ghost" className="gap-2 h-9 px-2">
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                      {getInitials(user.name)}
+                      {getInitials(currentUser.name)}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:inline text-sm font-medium max-w-[120px] truncate">
-                    {user.name}
+                    {currentUser.name}
                   </span>
                   <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden sm:block" />
                 </Button>
@@ -247,10 +254,10 @@ export function AppShell() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                    <Badge variant="outline" className={`w-fit mt-1 text-xs ${getRoleColor(user.role)}`}>
-                      {getRoleLabel(user.role)}
+                    <p className="text-sm font-medium">{currentUser.name}</p>
+                    <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+                    <Badge variant="outline" className={`w-fit mt-1 text-xs ${getRoleColor(currentUser.role)}`}>
+                      {getRoleLabel(currentUser.role)}
                     </Badge>
                   </div>
                 </DropdownMenuLabel>
