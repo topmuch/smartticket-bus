@@ -30,5 +30,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL=file:/app/data/smartticket.db
 
-# Start command - push schema and start server
-CMD sh -c "mkdir -p /app/data && export DATABASE_URL=file:/app/data/smartticket.db && npx prisma db push --skip-generate 2>/dev/null || true && exec node .next/standalone/server.js"
+# Start command - push schema, create admin, seed and start server
+CMD sh -c "mkdir -p /app/data && export DATABASE_URL=file:/app/data/smartticket.db && npx prisma db push --skip-generate 2>/dev/null || true && node -e \"const{PrismaClient}=require('@prisma/client');const b=require('bcryptjs');(async()=>{const db=new PrismaClient();try{const e=process.env.ADMIN_EMAIL||'admin@smartticket.bus';const p=process.env.ADMIN_PASSWORD||'admin123';const n=process.env.ADMIN_NAME||'Super Admin';const ex=await db.user.findUnique({where:{email:e}});if(ex){console.log('Admin exists');return;}const h=await b.hash(p,10);await db.user.create({data:{email:e,passwordHash:h,name:n,role:'SUPERADMIN',isActive:true}});console.log('Admin created: '+e+'/'+p);}catch(err){console.error(err.message);}await db.\\\$disconnect();})();\" 2>/dev/null || true && (if [ ! -f /app/data/.seeded ]; then npx tsx prisma/seed.ts 2>/dev/null && touch /app/data/.seeded || true; fi) && exec node .next/standalone/server.js"
