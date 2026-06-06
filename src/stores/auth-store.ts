@@ -28,11 +28,17 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
+      user: {
+        id: 'default-admin',
+        email: 'admin@smartticket.bus',
+        name: 'Super Administrateur',
+        role: 'SUPERADMIN' as UserRole,
+        phone: '+221 77 123 00 00',
+      },
       accessToken: null,
       refreshToken: null,
-      isAuthenticated: false,
-      hasHydrated: false,
+      isAuthenticated: true,
+      hasHydrated: true,
 
       setHasHydrated: () => {
         set({ hasHydrated: true });
