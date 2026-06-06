@@ -30,8 +30,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL=file:/app/data/smartticket.db
 
-# Create entrypoint script
-RUN printf '#!/bin/sh\nset -e\nmkdir -p /app/data\nexport DATABASE_URL=file:/app/data/smartticket.db\necho "[entrypoint] Pushing schema..."\nnpx prisma db push --skip-generate 2>/dev/null || true\necho "[entrypoint] Creating admin..."\nnode scripts/create-admin.cjs 2>/dev/null || true\nif [ ! -f /app/data/.seeded ]; then\n  echo "[entrypoint] Seeding..."\n  node -e "require(\"tsx/cjs\").execute(\"prisma/seed.ts\")" 2>/dev/null || npx tsx prisma/seed.ts 2>/dev/null || true\n  touch /app/data/.seeded\nfi\necho "[entrypoint] Starting server..."\nexec node .next/standalone/server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
-
-# Start command
-CMD ["/app/entrypoint.sh"]
+# Start command - push schema, create admin, seed and start server
+COPY entrypoint-coolify.sh /app/entrypoint-coolify.sh
+RUN chmod +x /app/entrypoint-coolify.sh
+CMD ["/app/entrypoint-coolify.sh"]
